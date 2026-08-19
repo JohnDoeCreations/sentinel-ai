@@ -8,6 +8,7 @@ from utils.stock_universe import (
     fetch_nasdaq100_symbols,
     load_universe,
     parse_universe_csv,
+    parse_universe_csv_with_names,
     parse_universe_text,
     save_universe,
 )
@@ -38,11 +39,27 @@ class StockUniverseTests(unittest.TestCase):
         self.assertEqual(symbols, ["AAPL", "MSFT"])
         self.assertEqual(invalid, [])
 
+    def test_preserves_company_names_from_csv(self):
+        symbols, invalid, companies = parse_universe_csv_with_names(
+            "Symbol,Security\nAAPL,Apple Inc.\nBRK.B,Berkshire Hathaway\n"
+        )
+        self.assertEqual(symbols, ["AAPL", "BRK-B"])
+        self.assertEqual(invalid, [])
+        self.assertEqual(
+            companies,
+            {"AAPL": "Apple Inc.", "BRK-B": "Berkshire Hathaway"},
+        )
+
     def test_save_and_load_round_trip(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "universe.json"
             with patch("utils.stock_universe.UNIVERSE_FILE", path):
-                save_universe(["AAPL", "MSFT"], "Leaders")
+                save_universe(
+                    ["AAPL", "MSFT"],
+                    "Leaders",
+                    company_names={"AAPL": "Apple Inc."},
+                )
                 state = load_universe()
         self.assertEqual(state["name"], "Leaders")
         self.assertEqual(state["symbols"], ["AAPL", "MSFT"])
+        self.assertEqual(state["companies"], {"AAPL": "Apple Inc."})
