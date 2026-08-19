@@ -35,6 +35,17 @@ def main():
     if not cloud_storage_enabled():
         raise RuntimeError("Supabase credentials are required for scheduled alerts.")
 
+    if os.getenv("SENTINEL_SEND_TEST_EMAIL", "").lower() == "true":
+        send_alert_email(
+            [
+                {
+                    "symbol": "TEST",
+                    "message": "Automatic Sentinel AI email alerts are working.",
+                }
+            ]
+        )
+        print("Test notification email sent.")
+
     force = os.getenv("SENTINEL_FORCE_ALERT_CHECK", "").lower() == "true"
     if not force and not market_is_open():
         print("Market is closed; no alert check was needed.")

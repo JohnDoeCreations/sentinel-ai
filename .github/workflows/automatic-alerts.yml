@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "*/30 13-21 * * 1-5"
   workflow_dispatch:
+    inputs:
+      send_test_email:
+        description: Send a test notification email
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: sentinel-ai-alert-monitor
@@ -21,6 +27,7 @@ jobs:
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
       SENTINEL_FORCE_ALERT_CHECK: ${{ github.event_name == 'workflow_dispatch' }}
+      SENTINEL_SEND_TEST_EMAIL: ${{ inputs.send_test_email }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
