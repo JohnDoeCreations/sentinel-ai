@@ -43,14 +43,31 @@ def current_price(symbol):
 
 
 st.set_page_config(
-    page_title="Sentinel AI Paper Trading",
+    page_title="Sentinel AI paper execution",
     page_icon=":material/account_balance_wallet:",
     layout="wide",
 )
 
-st.title(":material/account_balance_wallet: Paper trading")
-st.caption("Practice position management with simulated money and live market prices.")
-st.warning("Simulation only. No real brokerage orders are submitted.")
+with st.container(horizontal=True, vertical_alignment="center"):
+    with st.container():
+        st.title(":material/account_balance_wallet: Paper execution")
+        st.caption(
+            "Size, preview, and manage simulated positions with live market "
+            "prices and automatic protection."
+        )
+    st.badge("No live orders", icon=":material/science:", color="violet")
+
+with st.container(horizontal=True):
+    st.page_link(
+        "app_pages/Portfolio_Performance.py",
+        label="Portfolio intelligence",
+        icon=":material/monitoring:",
+    )
+    st.page_link(
+        "app_pages/Trade_History.py",
+        label="Trade history",
+        icon=":material/receipt_long:",
+    )
 
 trade_notice = st.session_state.pop("paper_trade_notice", None)
 if trade_notice:
@@ -96,32 +113,43 @@ for symbol, position in positions.items():
 total_value = portfolio["cash"] + market_value
 total_return = total_value - float(portfolio["starting_cash"])
 
-metric_1, metric_2, metric_3, metric_4 = st.columns(4, border=True)
-metric_1.metric("Cash", f'${portfolio["cash"]:,.2f}')
-metric_2.metric("Positions", f"${market_value:,.2f}")
-metric_3.metric("Portfolio Value", f"${total_value:,.2f}")
-metric_4.metric(
-    "Total Return",
-    f"${total_return:,.2f}",
-    delta=f"{(total_return / portfolio['starting_cash']) * 100:.2f}%",
-)
+with st.container(horizontal=True):
+    st.metric("Available cash", f'${portfolio["cash"]:,.2f}', border=True)
+    st.metric("Invested value", f"${market_value:,.2f}", border=True)
+    st.metric("Portfolio value", f"${total_value:,.2f}", border=True)
+    st.metric(
+        "Total return",
+        f"${total_return:,.2f}",
+        delta=f"{(total_return / portfolio['starting_cash']) * 100:.2f}%",
+        border=True,
+    )
 
 trade_context = st.session_state.get("paper_trade_context")
 if trade_context:
     context_label = trade_context.get("Context Label", "Research context")
-    st.subheader(f'{context_label}: {trade_context["Symbol"]}')
-    context_columns = st.columns(3, border=True)
-    if "Score" in trade_context:
-        context_columns[0].metric("Scanner score", f'{trade_context["Score"]}/4')
-    else:
-        context_columns[0].metric("Source", context_label)
-    context_columns[1].metric("Rating", trade_context.get("Rating", "—"))
-    context_columns[2].metric("Signal", trade_context.get("Signal", "—"))
-    st.info(trade_context["Explanation"])
+    with st.container(border=True):
+        st.subheader(f'{context_label}: {trade_context["Symbol"]}')
+        with st.container(horizontal=True):
+            if "Score" in trade_context:
+                st.metric("Scanner score", f'{trade_context["Score"]}/4')
+            else:
+                st.metric("Source", context_label)
+            st.metric("Rating", trade_context.get("Rating", "—"))
+            st.metric("Signal", trade_context.get("Signal", "—"))
+        st.caption(trade_context["Explanation"])
 
-buy_tab, sell_tab = st.tabs(["Buy Shares", "Sell Shares"])
+st.markdown("### 1 · Choose an action")
+st.caption("Every simulated order uses the latest available market price.")
+buy_tab, sell_tab = st.tabs(
+    [":material/add_circle: Buy shares", ":material/sell: Sell shares"]
+)
 
 with buy_tab:
+    st.markdown("#### Define risk and protection")
+    st.caption(
+        "Sentinel calculates a position size that respects your risk budget, "
+        "cash, and maximum allocation."
+    )
     watchlist = load_watchlist()
     default_symbol = watchlist[0] if watchlist else "AAPL"
     if "paper_trade_symbol_input" not in st.session_state:
@@ -203,15 +231,31 @@ with buy_tab:
 
     pending_buy = st.session_state.get("pending_buy")
     if pending_buy:
-        st.subheader("Order Preview")
-        preview_1, preview_2, preview_3, preview_4 = st.columns(4, border=True)
-        preview_1.metric("Current Price", f'${pending_buy["price"]:,.2f}')
-        preview_2.metric("Suggested Shares", pending_buy["suggested_shares"])
-        preview_3.metric("Estimated Cost", f'${pending_buy["estimated_cost"]:,.2f}')
-        preview_4.metric("Planned Stop", f'${pending_buy["stop_loss_price"]:,.2f}')
+        st.markdown("#### 2 · Review the order")
+        with st.container(horizontal=True):
+            st.metric(
+                "Current price",
+                f'${pending_buy["price"]:,.2f}',
+                border=True,
+            )
+            st.metric(
+                "Suggested shares",
+                pending_buy["suggested_shares"],
+                border=True,
+            )
+            st.metric(
+                "Estimated cost",
+                f'${pending_buy["estimated_cost"]:,.2f}',
+                border=True,
+            )
+            st.metric(
+                "Planned stop",
+                f'${pending_buy["stop_loss_price"]:,.2f}',
+                border=True,
+            )
         st.caption(
-            f'Maximum planned loss: ${pending_buy["risk_budget"]:,.2f}. '
-            f'Risk per share: ${pending_buy["risk_per_share"]:,.2f}. '
+            f'Maximum planned loss: \\${pending_buy["risk_budget"]:,.2f} · '
+            f'Risk per share: \\${pending_buy["risk_per_share"]:,.2f} · '
             "Position allocation is capped at 20% of portfolio value."
         )
         if pending_buy.get("automatic_protection", False):
@@ -226,7 +270,7 @@ with buy_tab:
                 "No shares fit the current cash, risk, and 20% allocation limits."
             )
         elif st.button(
-            "Confirm simulated buy",
+            "3 · Confirm simulated buy",
             icon=":material/check_circle:",
             type="primary",
             width="stretch",
@@ -278,6 +322,11 @@ with buy_tab:
                 st.rerun()
 
 with sell_tab:
+    st.markdown("#### Choose an open position")
+    st.caption(
+        "The sale uses the latest available price. Selling the full position "
+        "also disables its linked protection alerts."
+    )
     owned_symbols = list(positions)
     if not owned_symbols:
         st.info("Buy a position before placing a sell order.")
@@ -315,14 +364,27 @@ with sell_tab:
             except Exception as error:
                 st.error(f"Sell order rejected: {error}")
 
-st.subheader("Open Positions")
+st.subheader("Open positions")
 if position_rows:
-    st.dataframe(pd.DataFrame(position_rows), width="stretch", hide_index=True)
-    st.caption(f"Combined unrealized profit/loss: ${unrealized_profit:,.2f}")
+    st.dataframe(
+        pd.DataFrame(position_rows),
+        hide_index=True,
+        column_config={
+            "Symbol": st.column_config.TextColumn(pinned=True),
+            "Average Cost": st.column_config.NumberColumn(format="$%.2f"),
+            "Current Price": st.column_config.NumberColumn(format="$%.2f"),
+            "Market Value": st.column_config.NumberColumn(format="$%.2f"),
+            "Unrealized P/L": st.column_config.NumberColumn(format="$%.2f"),
+            "Return (%)": st.column_config.NumberColumn(format="%+.2f%%"),
+        },
+    )
+    st.caption(
+        f"Combined unrealized profit/loss: \\${unrealized_profit:,.2f}"
+    )
 else:
     st.info("No open positions yet.")
 
-st.subheader("Transaction History")
+st.subheader("Recent transactions")
 transactions = portfolio["transactions"]
 if transactions:
     transaction_table = pd.DataFrame(reversed(transactions)).rename(
@@ -336,6 +398,36 @@ if transactions:
             "realized_profit": "Realized P/L",
         }
     )
-    st.dataframe(transaction_table, width="stretch", hide_index=True)
+    visible_columns = [
+        column
+        for column in [
+            "Time (UTC)",
+            "Side",
+            "Symbol",
+            "Shares",
+            "Price",
+            "Total",
+            "Realized P/L",
+        ]
+        if column in transaction_table
+    ]
+    st.dataframe(
+        transaction_table[visible_columns].head(10),
+        hide_index=True,
+        column_config={
+            "Time (UTC)": st.column_config.DatetimeColumn(
+                format="MMM DD, YYYY h:mm a"
+            ),
+            "Symbol": st.column_config.TextColumn(pinned=True),
+            "Price": st.column_config.NumberColumn(format="$%.2f"),
+            "Total": st.column_config.NumberColumn(format="$%.2f"),
+            "Realized P/L": st.column_config.NumberColumn(format="$%.2f"),
+        },
+    )
+    st.page_link(
+        "app_pages/Trade_History.py",
+        label="View complete trade history",
+        icon=":material/arrow_forward:",
+    )
 else:
     st.info("No simulated transactions have been recorded.")
