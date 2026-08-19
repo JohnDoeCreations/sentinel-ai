@@ -28,6 +28,7 @@ def new_universe():
         "name": "Custom universe",
         "symbols": [],
         "companies": {},
+        "sectors": {},
         "updated_at": None,
     }
 
@@ -72,11 +73,19 @@ def parse_universe_csv(content):
 
 def parse_universe_csv_with_names(content):
     """Read normalized symbols plus available company names from CSV data."""
+    symbols, invalid, companies, _sectors = parse_universe_csv_with_metadata(
+        content
+    )
+    return symbols, invalid, companies
+
+
+def parse_universe_csv_with_metadata(content):
+    """Read symbols, company names, and sectors from CSV data."""
     if isinstance(content, bytes):
         content = content.decode("utf-8-sig")
     reader = csv.DictReader(StringIO(content))
     if not reader.fieldnames:
-        return [], [], {}
+        return [], [], {}, {}
     field_lookup = {name.strip().lower(): name for name in reader.fieldnames}
     symbol_field = field_lookup.get("symbol") or field_lookup.get("ticker")
     symbol_field = symbol_field or reader.fieldnames[0]
@@ -85,21 +94,33 @@ def parse_universe_csv_with_names(content):
         or field_lookup.get("security")
         or field_lookup.get("name")
     )
+    sector_field = (
+        field_lookup.get("gics sector")
+        or field_lookup.get("gics_sector")
+        or field_lookup.get("sector")
+    )
 
     rows = list(reader)
     symbols, invalid = _normalize_many(row.get(symbol_field, "") for row in rows)
     companies = {}
-    if name_field:
-        for row in rows:
-            raw_symbol = str(row.get(symbol_field, "")).strip().replace(".", "-")
+    sectors = {}
+    for row in rows:
+        raw_symbol = str(row.get(symbol_field, "")).strip().replace(".", "-")
+        try:
+            symbol = normalize_symbol(raw_symbol)
+        except ValueError:
+            continue
+        if symbol not in symbols:
+            continue
+        if name_field:
             company = str(row.get(name_field, "")).strip()
-            try:
-                symbol = normalize_symbol(raw_symbol)
-            except ValueError:
-                continue
-            if symbol in symbols and company:
+            if company:
                 companies[symbol] = company
-    return symbols, invalid, companies
+        if sector_field:
+            sector = str(row.get(sector_field, "")).strip()
+            if sector:
+                sectors[symbol] = sector
+    return symbols, invalid, companies, sectors
 
 
 def fetch_sp500_symbols(timeout=20):
@@ -116,10 +137,12 @@ def fetch_sp500_universe(timeout=20):
     """Fetch S&P 500 symbols with company display names."""
     response = requests.get(SP500_SOURCE, timeout=timeout)
     response.raise_for_status()
-    symbols, invalid, companies = parse_universe_csv_with_names(response.text)
+    symbols, invalid, companies, sectors = parse_universe_csv_with_metadata(
+        response.text
+    )
     if len(symbols) < 450:
         raise ValueError("The S&P 500 source returned an incomplete list.")
-    return symbols, invalid, companies
+    return symbols, invalid, companies, sectors
 
 
 def fetch_nasdaq100_symbols(timeout=20):
@@ -136,10 +159,12 @@ def fetch_nasdaq100_universe(timeout=20):
     """Fetch NASDAQ-100 symbols with company display names."""
     response = requests.get(NASDAQ100_SOURCE, timeout=timeout)
     response.raise_for_status()
-    symbols, invalid, companies = parse_universe_csv_with_names(response.text)
+    symbols, invalid, companies, sectors = parse_universe_csv_with_metadata(
+        response.text
+    )
     if len(symbols) < 90:
         raise ValueError("The NASDAQ-100 source returned an incomplete list.")
-    return symbols, invalid, companies
+    return symbols, invalid, companies, sectors
 
 
 def load_universe():
@@ -163,15 +188,29 @@ def load_universe():
         and symbol in raw_companies
         and str(raw_companies[symbol]).strip()
     }
+    raw_sectors = state.get("sectors", {})
+    sectors = {
+        symbol: str(raw_sectors[symbol]).strip()
+        for symbol in symbols
+        if isinstance(raw_sectors, dict)
+        and symbol in raw_sectors
+        and str(raw_sectors[symbol]).strip()
+    }
     return {
         "name": str(state.get("name") or "Custom universe"),
         "symbols": symbols,
         "companies": companies,
+        "sectors": sectors,
         "updated_at": state.get("updated_at"),
     }
 
 
-def save_universe(symbols, name="Custom universe", company_names=None):
+def save_universe(
+    symbols,
+    name="Custom universe",
+    company_names=None,
+    sectors=None,
+):
     """Normalize and persist one stock universe."""
     clean_symbols, invalid = _normalize_many(symbols)
     if not clean_symbols:
@@ -185,6 +224,13 @@ def save_universe(symbols, name="Custom universe", company_names=None):
             if isinstance(company_names, dict)
             and symbol in company_names
             and str(company_names[symbol]).strip()
+        },
+        "sectors": {
+            symbol: str(sectors[symbol]).strip()
+            for symbol in clean_symbols
+            if isinstance(sectors, dict)
+            and symbol in sectors
+            and str(sectors[symbol]).strip()
         },
         "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }

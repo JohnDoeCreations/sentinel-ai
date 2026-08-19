@@ -9,6 +9,7 @@ from utils.stock_universe import (
     load_universe,
     parse_universe_csv,
     parse_universe_csv_with_names,
+    parse_universe_csv_with_metadata,
     parse_universe_text,
     save_universe,
 )
@@ -50,6 +51,15 @@ class StockUniverseTests(unittest.TestCase):
             {"AAPL": "Apple Inc.", "BRK-B": "Berkshire Hathaway"},
         )
 
+    def test_preserves_sector_metadata_from_csv(self):
+        symbols, invalid, companies, sectors = parse_universe_csv_with_metadata(
+            "Ticker,Company,GICS_Sector\nAAPL,Apple,Technology\n"
+        )
+        self.assertEqual(symbols, ["AAPL"])
+        self.assertEqual(invalid, [])
+        self.assertEqual(companies, {"AAPL": "Apple"})
+        self.assertEqual(sectors, {"AAPL": "Technology"})
+
     def test_save_and_load_round_trip(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "universe.json"
@@ -58,8 +68,10 @@ class StockUniverseTests(unittest.TestCase):
                     ["AAPL", "MSFT"],
                     "Leaders",
                     company_names={"AAPL": "Apple Inc."},
+                    sectors={"AAPL": "Technology"},
                 )
                 state = load_universe()
         self.assertEqual(state["name"], "Leaders")
         self.assertEqual(state["symbols"], ["AAPL", "MSFT"])
         self.assertEqual(state["companies"], {"AAPL": "Apple Inc."})
+        self.assertEqual(state["sectors"], {"AAPL": "Technology"})

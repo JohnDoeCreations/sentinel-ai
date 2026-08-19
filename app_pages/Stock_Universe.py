@@ -17,7 +17,7 @@ from utils.stock_universe import (
     fetch_nasdaq100_universe,
     fetch_sp500_universe,
     load_universe,
-    parse_universe_csv_with_names,
+    parse_universe_csv_with_metadata,
     parse_universe_text,
     save_universe,
 )
@@ -67,9 +67,12 @@ if method == "Index presets":
         ):
             try:
                 with st.spinner("Loading the current S&P 500 list..."):
-                    symbols, invalid, companies = fetch_sp500_universe()
+                    symbols, invalid, companies, sectors = fetch_sp500_universe()
                     saved, _ = save_universe(
-                        symbols, "S&P 500", company_names=companies
+                        symbols,
+                        "S&P 500",
+                        company_names=companies,
+                        sectors=sectors,
                     )
                 st.success(f'Saved {len(saved["symbols"])} symbols.')
                 if invalid:
@@ -90,9 +93,14 @@ if method == "Index presets":
         ):
             try:
                 with st.spinner("Loading the current NASDAQ-100 list..."):
-                    symbols, invalid, companies = fetch_nasdaq100_universe()
+                    symbols, invalid, companies, sectors = (
+                        fetch_nasdaq100_universe()
+                    )
                     saved, _ = save_universe(
-                        symbols, "NASDAQ-100", company_names=companies
+                        symbols,
+                        "NASDAQ-100",
+                        company_names=companies,
+                        sectors=sectors,
                     )
                 st.success(f'Saved {len(saved["symbols"])} symbols.')
                 if invalid:
@@ -130,11 +138,14 @@ else:
         upload_name = st.text_input("Universe name", value=Path(upload.name).stem)
         if st.button("Save uploaded universe", icon=":material/save:", type="primary"):
             try:
-                symbols, invalid, companies = parse_universe_csv_with_names(
-                    upload.getvalue()
+                symbols, invalid, companies, sectors = (
+                    parse_universe_csv_with_metadata(upload.getvalue())
                 )
                 saved, _ = save_universe(
-                    symbols, upload_name, company_names=companies
+                    symbols,
+                    upload_name,
+                    company_names=companies,
+                    sectors=sectors,
                 )
                 st.success(f'Saved {len(saved["symbols"])} symbols.')
                 if invalid:
@@ -147,26 +158,105 @@ if not universe["symbols"]:
     st.info("Choose an import method to create your first large stock universe.")
     st.stop()
 
+def stock_label(symbol):
+    company = universe["companies"].get(symbol)
+    return f"{company} ({symbol})" if company else symbol
+
+
+st.session_state.setdefault("universe_scan_basket", [])
+st.session_state["universe_scan_basket"] = [
+    symbol
+    for symbol in st.session_state["universe_scan_basket"]
+    if symbol in universe["symbols"]
+][:50]
+
 with st.container(border=True):
-    st.subheader("Universe preview")
-    search = st.text_input(
-        "Find a company or symbol", placeholder="Example: NVIDIA or NVDA"
+    st.subheader("Find stocks")
+    filter_controls = st.container(horizontal=True)
+    search = filter_controls.text_input(
+        "Company or symbol",
+        placeholder="Example: Microsoft or MSFT",
+    )
+    available_sectors = sorted(set(universe["sectors"].values()))
+    sector = filter_controls.selectbox(
+        "Sector",
+        options=["All sectors", *available_sectors],
     )
     normalized_search = search.strip().upper()
-    visible_symbols = [
+    matching_symbols = [
         symbol
         for symbol in universe["symbols"]
-        if normalized_search in symbol
-        or normalized_search in universe["companies"].get(symbol, "").upper()
+        if (
+            not normalized_search
+            or normalized_search in symbol
+            or normalized_search
+            in universe["companies"].get(symbol, "").upper()
+        )
+        and (
+            sector == "All sectors"
+            or universe["sectors"].get(symbol) == sector
+        )
     ]
+
+    st.caption(f"{len(matching_symbols)} matching stocks")
+    matches_to_add = st.multiselect(
+        "Matching stocks",
+        options=matching_symbols,
+        format_func=stock_label,
+        max_selections=50,
+        placeholder="Select matching stocks",
+        key="universe_match_picker",
+    )
+
+    add_column, add_all_column, clear_column = st.columns(3)
+    if add_column.button(
+        "Add selected",
+        icon=":material/add:",
+        disabled=not matches_to_add,
+        width="stretch",
+    ):
+        combined = list(
+            dict.fromkeys(
+                st.session_state["universe_scan_basket"] + matches_to_add
+            )
+        )
+        st.session_state["universe_scan_basket"] = combined[:50]
+        st.rerun()
+    if add_all_column.button(
+        "Add all filtered",
+        icon=":material/playlist_add:",
+        disabled=not matching_symbols,
+        width="stretch",
+    ):
+        combined = list(
+            dict.fromkeys(
+                st.session_state["universe_scan_basket"] + matching_symbols
+            )
+        )
+        st.session_state["universe_scan_basket"] = combined[:50]
+        st.rerun()
+    if clear_column.button(
+        "Clear selection",
+        icon=":material/clear_all:",
+        disabled=not st.session_state["universe_scan_basket"],
+        width="stretch",
+    ):
+        st.session_state["universe_scan_basket"] = []
+        st.rerun()
+
+    preview_symbols = matching_symbols[:100]
     st.dataframe(
         pd.DataFrame(
             {
                 "Company": [
                     universe["companies"].get(symbol, symbol)
-                    for symbol in visible_symbols
+                    for symbol in preview_symbols
                 ],
-                "Symbol": visible_symbols,
+                "Symbol": preview_symbols,
+                "Sector": [
+                    universe["sectors"].get(symbol, "—")
+                    for symbol in preview_symbols
+                ],
             }
         ),
         hide_index=True,
@@ -178,17 +268,12 @@ st.caption(
     "The background job scans 25 symbols every 30 minutes during U.S. market "
     "hours. For an immediate scan, choose the exact stocks you want below."
 )
-selected_to_scan = st.multiselect(
-    "Stocks to scan now",
-    options=universe["symbols"],
-    max_selections=50,
-    placeholder="Search and select up to 50 stocks",
-    format_func=lambda symbol: (
-        f'{universe["companies"][symbol]} ({symbol})'
-        if symbol in universe["companies"]
-        else symbol
-    ),
-)
+selected_to_scan = st.session_state["universe_scan_basket"]
+if selected_to_scan:
+    st.write("**Selected stocks**")
+    st.caption(" · ".join(stock_label(symbol) for symbol in selected_to_scan))
+else:
+    st.info("Search above and add stocks to your scan selection.")
 if st.button(
     f"Scan selected ({len(selected_to_scan)})",
     icon=":material/play_arrow:",
