@@ -12,6 +12,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from data.market_data import get_stock_data
+from utils.alerts import (
+    disable_paper_trade_protection,
+    ensure_paper_trade_protection,
+    load_alert_state,
+    paper_trade_protection_status,
+)
 from utils.paper_trading import (
     buy_shares,
     calculate_position_size,
@@ -46,8 +52,16 @@ st.title(":material/account_balance_wallet: Paper trading")
 st.caption("Practice position management with simulated money and live market prices.")
 st.warning("Simulation only. No real brokerage orders are submitted.")
 
+trade_notice = st.session_state.pop("paper_trade_notice", None)
+if trade_notice:
+    if trade_notice["level"] == "success":
+        st.success(trade_notice["message"])
+    else:
+        st.warning(trade_notice["message"])
+
 portfolio = load_portfolio()
 positions = portfolio["positions"]
+saved_alerts = load_alert_state()["alerts"]
 
 position_rows = []
 market_value = 0.0
@@ -71,6 +85,9 @@ for symbol, position in positions.items():
                 "Market Value": round(value, 2),
                 "Unrealized P/L": round(profit, 2),
                 "Return (%)": round(((price / average_cost) - 1) * 100, 2),
+                "Protection": paper_trade_protection_status(
+                    symbol, saved_alerts
+                )["label"],
             }
         )
     except Exception as error:
@@ -130,6 +147,22 @@ with buy_tab:
             value=5.0,
             step=0.5,
         )
+        automatic_protection = st.checkbox(
+            "Create automatic stop-loss and take-profit alerts",
+            value=True,
+            help=(
+                "Sentinel AI will monitor both rules in the cloud and email "
+                "you when either threshold is reached."
+            ),
+        )
+        reward_risk_ratio = st.number_input(
+            "Profit target (reward-to-risk ratio)",
+            min_value=1.0,
+            max_value=5.0,
+            value=2.0,
+            step=0.5,
+            disabled=not automatic_protection,
+        )
         buy_submitted = st.form_submit_button(
             "Calculate safe position size",
             icon=":material/calculate:",
@@ -160,6 +193,9 @@ with buy_tab:
             st.session_state["pending_buy"] = {
                 "symbol": buy_symbol,
                 "price": price,
+                "automatic_protection": automatic_protection,
+                "stop_loss_percent": stop_loss_percent,
+                "take_profit_percent": stop_loss_percent * reward_risk_ratio,
                 **sizing,
             }
         except Exception as error:
@@ -178,6 +214,12 @@ with buy_tab:
             f'Risk per share: ${pending_buy["risk_per_share"]:,.2f}. '
             "Position allocation is capped at 20% of portfolio value."
         )
+        if pending_buy.get("automatic_protection", False):
+            st.info(
+                f'Automatic protection: alert at '
+                f'-{pending_buy["stop_loss_percent"]:.1f}% and '
+                f'+{pending_buy["take_profit_percent"]:.1f}%.'
+            )
 
         if pending_buy["suggested_shares"] < 1:
             st.warning(
@@ -195,11 +237,45 @@ with buy_tab:
                     pending_buy["suggested_shares"],
                     pending_buy["price"],
                 )
+            except Exception as error:
+                st.error(f"Buy order rejected: {error}")
+            else:
+                protection_error = None
+                if pending_buy.get("automatic_protection", False):
+                    try:
+                        ensure_paper_trade_protection(
+                            pending_buy["symbol"],
+                            pending_buy["stop_loss_percent"],
+                            pending_buy["take_profit_percent"],
+                        )
+                    except Exception as error:
+                        protection_error = str(error)
+
+                if protection_error:
+                    st.session_state["paper_trade_notice"] = {
+                        "level": "warning",
+                        "message": (
+                            "The simulated buy succeeded, but automatic "
+                            f"protection could not be saved: {protection_error}"
+                        ),
+                    }
+                else:
+                    protection_text = (
+                        " Automatic protection is active."
+                        if pending_buy.get("automatic_protection", False)
+                        else ""
+                    )
+                    st.session_state["paper_trade_notice"] = {
+                        "level": "success",
+                        "message": (
+                            f'Bought {pending_buy["suggested_shares"]} '
+                            f'share(s) of {pending_buy["symbol"]}.'
+                            + protection_text
+                        ),
+                    }
                 st.session_state.pop("pending_buy", None)
                 st.session_state.pop("paper_trade_context", None)
                 st.rerun()
-            except Exception as error:
-                st.error(f"Buy order rejected: {error}")
 
 with sell_tab:
     owned_symbols = list(positions)
@@ -226,7 +302,11 @@ with sell_tab:
         if sell_submitted:
             try:
                 price = current_price(sell_symbol)
-                sell_shares(sell_symbol, sell_quantity, price)
+                updated_portfolio = sell_shares(
+                    sell_symbol, sell_quantity, price
+                )
+                if sell_symbol not in updated_portfolio["positions"]:
+                    disable_paper_trade_protection(sell_symbol)
                 st.success(
                     f"Sold {int(sell_quantity)} share(s) of {sell_symbol} "
                     f"at ${price:,.2f}."

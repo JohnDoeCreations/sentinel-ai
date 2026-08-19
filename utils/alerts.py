@@ -74,6 +74,102 @@ def add_alert(symbol, alert_type, target):
     return alert
 
 
+def ensure_paper_trade_protection(
+    symbol,
+    stop_loss_percent,
+    take_profit_percent,
+):
+    """Create or refresh linked stop-loss and take-profit alerts."""
+    clean_symbol = normalize_symbol(symbol)
+    targets = {
+        "position_loss_at_most": float(stop_loss_percent),
+        "position_gain_at_least": float(take_profit_percent),
+    }
+    if any(target <= 0 for target in targets.values()):
+        raise ValueError("Protection percentages must be greater than zero.")
+
+    state = load_alert_state()
+    protected = []
+    for alert_type, target in targets.items():
+        existing = next(
+            (
+                alert
+                for alert in state["alerts"]
+                if alert.get("symbol") == clean_symbol
+                and alert.get("type") == alert_type
+                and alert.get("source") == "paper_trade"
+            ),
+            None,
+        )
+        if existing:
+            existing.update(
+                {
+                    "target": target,
+                    "enabled": True,
+                    "is_triggered": False,
+                    "last_checked_at": None,
+                    "last_value": None,
+                }
+            )
+            existing.pop("last_error", None)
+            protected.append(existing)
+            continue
+
+        alert = {
+            "id": uuid4().hex,
+            "symbol": clean_symbol,
+            "type": alert_type,
+            "target": target,
+            "enabled": True,
+            "is_triggered": False,
+            "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "last_checked_at": None,
+            "last_value": None,
+            "source": "paper_trade",
+        }
+        state["alerts"].append(alert)
+        protected.append(alert)
+
+    save_alert_state(state)
+    return protected
+
+
+def paper_trade_protection_status(symbol, alerts=None):
+    """Summarize enabled linked protection for one paper position."""
+    clean_symbol = normalize_symbol(symbol)
+    alerts = alerts if alerts is not None else load_alert_state()["alerts"]
+    linked = [
+        alert
+        for alert in alerts
+        if alert.get("symbol") == clean_symbol
+        and alert.get("source") == "paper_trade"
+        and alert.get("enabled", True)
+    ]
+    types = {alert.get("type") for alert in linked}
+    stop = "position_loss_at_most" in types
+    target = "position_gain_at_least" in types
+    return {
+        "stop_loss": stop,
+        "take_profit": target,
+        "protected": stop and target,
+        "label": "Protected" if stop and target else "Needs protection",
+    }
+
+
+def disable_paper_trade_protection(symbol):
+    """Disable linked protection after the associated position is closed."""
+    clean_symbol = normalize_symbol(symbol)
+    state = load_alert_state()
+    for alert in state["alerts"]:
+        if (
+            alert.get("symbol") == clean_symbol
+            and alert.get("source") == "paper_trade"
+        ):
+            alert["enabled"] = False
+            alert["is_triggered"] = False
+    return save_alert_state(state)
+
+
 def set_alert_enabled(alert_id, enabled):
     """Enable or disable an alert."""
     state = load_alert_state()

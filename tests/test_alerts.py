@@ -7,8 +7,11 @@ from unittest.mock import patch
 from utils.alerts import (
     add_alert,
     delete_alert,
+    disable_paper_trade_protection,
+    ensure_paper_trade_protection,
     evaluate_alert,
     load_alert_state,
+    paper_trade_protection_status,
     record_alert_check,
     set_alert_enabled,
 )
@@ -24,6 +27,37 @@ ANALYSIS = {
 
 
 class AlertTests(unittest.TestCase):
+    def test_paper_trade_protection_is_linked_and_deduplicated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "alerts.json"
+            with patch("utils.alerts.ALERTS_FILE", path):
+                first = ensure_paper_trade_protection("AAPL", 5.0, 10.0)
+                second = ensure_paper_trade_protection("aapl", 4.0, 8.0)
+                state = load_alert_state()
+                status = paper_trade_protection_status(
+                    "AAPL", state["alerts"]
+                )
+
+                self.assertEqual(len(first), 2)
+                self.assertEqual(len(second), 2)
+                self.assertEqual(len(state["alerts"]), 2)
+                self.assertEqual(
+                    {alert["target"] for alert in state["alerts"]},
+                    {4.0, 8.0},
+                )
+                self.assertTrue(status["protected"])
+
+                disable_paper_trade_protection("AAPL")
+                state = load_alert_state()
+                self.assertFalse(
+                    paper_trade_protection_status(
+                        "AAPL", state["alerts"]
+                    )["protected"]
+                )
+                self.assertFalse(
+                    any(alert["enabled"] for alert in state["alerts"])
+                )
+
     def test_alert_lifecycle_and_trigger_history(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "alerts.json"

@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from data.market_data import get_stock_data
+from utils.alerts import load_alert_state, paper_trade_protection_status
 from utils.paper_trading import load_portfolio, record_equity_snapshot
 from utils.portfolio_analytics import (
     concentration_summary,
@@ -46,6 +47,7 @@ st.caption("Track the results of your simulated Sentinel AI portfolio.")
 st.warning("Paper-trading analytics only. No real brokerage account is connected.")
 
 portfolio = load_portfolio()
+saved_alerts = load_alert_state()["alerts"]
 starting_cash = float(portfolio["starting_cash"])
 cash = float(portfolio["cash"])
 
@@ -72,6 +74,9 @@ for symbol, position in portfolio["positions"].items():
                 "Market Value": round(value, 2),
                 "Unrealized P/L": round(profit, 2),
                 "Return (%)": round(return_percent, 2),
+                "Protection": paper_trade_protection_status(
+                    symbol, saved_alerts
+                )["label"],
             }
         )
     except Exception as error:

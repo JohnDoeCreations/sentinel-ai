@@ -219,6 +219,12 @@ def alert_monitor():
                 details_column, toggle_column, delete_column = st.columns([4, 1, 1])
                 with details_column:
                     st.write(f'**{alert["symbol"]} — {label} {target}**')
+                    if alert.get("source") == "paper_trade":
+                        st.badge(
+                            "Paper-trade protection",
+                            icon=":material/health_and_safety:",
+                            color="blue",
+                        )
                     st.caption(
                         f'Status: {status} · Last checked: '
                         f'{alert.get("last_checked_at") or "Never"} · '
