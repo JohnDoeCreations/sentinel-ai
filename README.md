@@ -10,7 +10,7 @@ Sentinel AI is a modern Streamlit market-analysis workspace for researching stoc
 - Risk-first trade planning with position sizing, stop levels, targets, and reward-to-risk checks
 - Multi-symbol market scanner
 - Persistent watchlists and price alerts
-- Timed in-app alert monitoring with trigger history and duplicate protection
+- Scheduled cloud alert monitoring with trigger history and duplicate protection
 - Massive-powered company news with explainable headline sentiment
 - Automatic local backups, portable data export, and validated restore
 - Strategy backtesting with trade logs and equity curves

@@ -52,8 +52,8 @@ st.set_page_config(
 st.title(":material/notifications: Alerts")
 st.caption("Create persistent rules and monitor them against current market analysis.")
 st.info(
-    "Automatic checks run while this Alerts page remains open. Sentinel cannot "
-    "send notifications after the app or browser session is closed yet."
+    "Cloud monitoring checks enabled alerts every 30 minutes during regular "
+    "U.S. market hours—even when this page and your browser are closed."
 )
 
 watchlist = load_watchlist()
@@ -201,7 +201,7 @@ def alert_monitor():
     if automatic_monitoring:
         st.caption(
             f"Automatic monitoring is active every {interval_label.lower()}. "
-            "Keep this page open."
+            "This faster in-page check supplements the 30-minute cloud monitor."
         )
 
     st.subheader("Saved alerts")
