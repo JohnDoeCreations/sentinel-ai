@@ -19,6 +19,8 @@ from utils.portfolio_analytics import (
     concentration_summary,
     enrich_position_rows,
     equity_drawdown,
+    protection_risk_rows,
+    protection_risk_summary,
 )
 
 
@@ -37,14 +39,20 @@ def latest_price(symbol):
 
 
 st.set_page_config(
-    page_title="Sentinel AI Portfolio Performance",
+    page_title="Sentinel AI portfolio intelligence",
     page_icon=":material/monitoring:",
     layout="wide",
 )
 
-st.title(":material/monitoring: Portfolio performance")
-st.caption("Track the results of your simulated Sentinel AI portfolio.")
-st.warning("Paper-trading analytics only. No real brokerage account is connected.")
+with st.container(horizontal=True, vertical_alignment="center"):
+    with st.container():
+        st.title(":material/monitoring: Portfolio intelligence")
+        st.caption(
+            "Performance, allocation, drawdown, and position protection in "
+            "one portfolio workspace."
+        )
+    st.badge("Simulation", icon=":material/science:", color="violet")
+st.caption("Paper-trading analytics only · No real brokerage account connected")
 
 portfolio = load_portfolio()
 saved_alerts = load_alert_state()["alerts"]
@@ -88,6 +96,8 @@ total_return_percent = (total_profit / starting_cash) * 100
 position_rows = enrich_position_rows(position_rows, portfolio_value)
 invested_cost_basis = sum(row["Cost Basis"] for row in position_rows)
 concentration = concentration_summary(position_rows)
+protection_rows = protection_risk_rows(portfolio["positions"], saved_alerts)
+protection_summary = protection_risk_summary(protection_rows)
 
 sell_transactions = [
     transaction
@@ -127,9 +137,16 @@ with st.container(horizontal=True):
 with st.container(horizontal=True):
     st.metric("Available cash", f"${cash:,.2f}", border=True)
     st.metric("Invested value", f"${market_value:,.2f}", border=True)
-    st.metric("Invested cost basis", f"${invested_cost_basis:,.2f}", border=True)
     st.metric("Maximum drawdown", f"{maximum_drawdown:.2f}%", border=True)
-    st.metric("Closed-sale win rate", f"{closed_trade_win_rate:.2f}%", border=True)
+    st.metric(
+        "Protection coverage",
+        f'{protection_summary["coverage_percent"]:.0f}%'
+        if position_rows
+        else "No positions",
+        f'{protection_summary["protected_positions"]} protected',
+        border=True,
+        delta_color="off",
+    )
 
 st.subheader("Portfolio equity curve")
 if history.empty:
@@ -145,7 +162,7 @@ else:
             y=history["portfolio_value"],
             mode="lines+markers",
             name="Portfolio Value",
-            line={"color": "#38bdf8", "width": 3},
+            line={"color": "#8B5CF6", "width": 3},
         )
     )
     figure.add_hline(
@@ -192,6 +209,51 @@ if position_rows:
 else:
     st.info("Allocation analysis will appear after you open a position.")
 
+st.subheader("Position protection")
+st.caption(
+    f'Invested cost basis: \\${invested_cost_basis:,.2f} · '
+    f'Planned capital at risk: '
+    f'\\${protection_summary["planned_risk"]:,.2f}'
+)
+if protection_rows:
+    if protection_summary["unprotected_value"] > 0:
+        unprotected = ", ".join(
+            row["Symbol"]
+            for row in protection_rows
+            if row["Status"] != "Protected"
+        )
+        st.warning(
+            f"Protection needed for {unprotected}. Add stop and target alerts "
+            "from Paper trading or Alerts.",
+            icon=":material/gpp_maybe:",
+        )
+    elif protection_summary["attention_count"]:
+        st.warning(
+            "Protection is configured, but one or more linked alerts needs "
+            "attention.",
+            icon=":material/notification_important:",
+        )
+    else:
+        st.success(
+            "Every open position has active stop and target protection.",
+            icon=":material/verified_user:",
+        )
+
+    st.dataframe(
+        pd.DataFrame(protection_rows),
+        hide_index=True,
+        column_config={
+            "Symbol": st.column_config.TextColumn(pinned=True),
+            "Cost Basis": st.column_config.NumberColumn(format="$%.2f"),
+            "Stop (%)": st.column_config.NumberColumn(format="%.2f%%"),
+            "Target (%)": st.column_config.NumberColumn(format="%.2f%%"),
+            "Planned Risk ($)": st.column_config.NumberColumn(format="$%.2f"),
+            "Needs Attention": st.column_config.CheckboxColumn(),
+        },
+    )
+else:
+    st.info("Open a simulated position to begin protection tracking.")
+
 st.subheader("Open-position performance")
 if position_rows:
     positions_table = pd.DataFrame(position_rows).sort_values(
@@ -208,10 +270,14 @@ if position_rows:
             f'({best_position["Return (%)"]:+.2f}%)'
         )
     with worst_column:
-        st.error(
+        weakest_message = (
             f'Weakest open position: {worst_position["Symbol"]} '
             f'({worst_position["Return (%)"]:+.2f}%)'
         )
+        if float(worst_position["Return (%)"]) < 0:
+            st.error(weakest_message)
+        else:
+            st.info(weakest_message)
 
     st.dataframe(
         positions_table,
@@ -233,6 +299,7 @@ else:
     st.info("Open a simulated position to begin position-level tracking.")
 
 st.subheader("Closed sales")
+st.caption(f"Closed-sale win rate: {closed_trade_win_rate:.2f}%")
 if sell_transactions:
     closed_table = pd.DataFrame(reversed(sell_transactions)).rename(
         columns={

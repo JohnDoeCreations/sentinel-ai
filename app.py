@@ -72,13 +72,8 @@ pages = {
         ),
         st.Page(
             "app_pages/Portfolio_Performance.py",
-            title="Portfolio performance",
+            title="Portfolio intelligence",
             icon=":material/monitoring:",
-        ),
-        st.Page(
-            "app_pages/Risk_Center.py",
-            title="Risk center",
-            icon=":material/health_and_safety:",
         ),
         st.Page(
             "app_pages/Trade_History.py",
