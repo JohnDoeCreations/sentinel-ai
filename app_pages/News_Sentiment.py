@@ -31,15 +31,26 @@ def display_time(value):
 
 
 st.set_page_config(
-    page_title="Sentinel AI news and sentiment",
+    page_title="Sentinel AI news intelligence",
     page_icon=":material/newspaper:",
     layout="wide",
 )
 
-st.title(":material/newspaper: News & sentiment")
-st.caption(
-    "Review ticker-specific headlines and Massive's explainable sentiment alongside Sentinel's technical view."
-)
+with st.container(horizontal=True, vertical_alignment="center"):
+    with st.container():
+        st.title(":material/newspaper: News intelligence")
+        st.caption(
+            "Review ticker headlines and explainable sentiment alongside "
+            "Sentinel's technical view."
+        )
+    st.badge("Powered by Massive", icon=":material/news:", color="violet")
+
+with st.container(horizontal=True):
+    st.page_link(
+        "app_pages/Market_Analysis.py",
+        label="Open technical research",
+        icon=":material/finance_mode:",
+    )
 
 try:
     massive_api_key = str(st.secrets.get("MASSIVE_API_KEY", "")).strip()
@@ -55,12 +66,15 @@ if not massive_api_key:
 
 watchlist = load_watchlist()
 default_symbol = watchlist[0] if watchlist else "AAPL"
+default_symbol = st.session_state.get("research_symbol", default_symbol)
+if st.session_state.get("news_symbol") not in {None, default_symbol}:
+    st.session_state.pop("news_articles", None)
 
 with st.form("news_search_form", border=False):
     search_row = st.container(horizontal=True, vertical_alignment="bottom")
     symbol = search_row.text_input(
         "Stock symbol",
-        value=st.session_state.get("news_symbol", default_symbol),
+        value=default_symbol,
         max_chars=10,
     )
     article_limit = search_row.selectbox(
@@ -93,6 +107,7 @@ if search_clicked:
             )
         st.session_state["news_articles"] = articles
         st.session_state["news_symbol"] = symbol.strip().upper()
+        st.session_state["research_symbol"] = symbol.strip().upper()
     except (NewsDataError, ValueError) as error:
         st.error(str(error))
         st.session_state.pop("news_articles", None)
@@ -111,9 +126,13 @@ summary = summarize_sentiment(articles)
 with st.container(horizontal=True):
     st.metric("Overall sentiment", summary["label"], border=True)
     st.metric("Sentiment score", f'{summary["score"]:+.2f}', border=True)
-    st.metric("Positive", summary["positive"], border=True)
-    st.metric("Neutral", summary["neutral"], border=True)
-    st.metric("Negative", summary["negative"], border=True)
+    st.metric(
+        "Headline mix",
+        f'{summary["positive"]} positive',
+        f'{summary["negative"]} negative · {summary["neutral"]} neutral',
+        border=True,
+        delta_color="off",
+    )
 
 try:
     technical = build_market_analysis(selected_symbol)

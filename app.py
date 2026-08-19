@@ -38,12 +38,12 @@ pages = {
         ),
         st.Page(
             "app_pages/Market_Analysis.py",
-            title="Market analysis",
+            title="Technical research",
             icon=":material/finance_mode:",
         ),
         st.Page(
             "app_pages/News_Sentiment.py",
-            title="News & sentiment",
+            title="News intelligence",
             icon=":material/newspaper:",
         ),
         st.Page(

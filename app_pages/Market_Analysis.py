@@ -16,21 +16,35 @@ from utils.watchlist import add_symbol
 
 
 st.set_page_config(
-    page_title="Sentinel AI market analysis",
+    page_title="Sentinel AI technical research",
     page_icon=":material/finance_mode:",
     layout="wide",
 )
 
-st.title(":material/finance_mode: Market analysis")
-st.caption(
-    "Turn price, momentum, trend, and volatility data into an explainable market view."
-)
+with st.container(horizontal=True, vertical_alignment="center"):
+    with st.container():
+        st.title(":material/finance_mode: Technical research")
+        st.caption(
+            "Turn price, momentum, trend, and volatility into an explainable "
+            "market view."
+        )
+    st.badge("Rule based", icon=":material/psychology:", color="violet")
+
+with st.container(horizontal=True):
+    st.page_link(
+        "app_pages/News_Sentiment.py",
+        label="Open news intelligence",
+        icon=":material/newspaper:",
+    )
 
 with st.form("market_analysis_form", border=False):
     input_row = st.container(horizontal=True, vertical_alignment="bottom")
     symbol = input_row.text_input(
         "Stock symbol",
-        value=st.session_state.get("analysis_symbol", "AAPL"),
+        value=st.session_state.get(
+            "research_symbol",
+            st.session_state.get("analysis_symbol", "AAPL"),
+        ),
         placeholder="AAPL",
         key="market_analysis_symbol_input",
     )
@@ -62,6 +76,7 @@ if analyze_clicked:
         else:
             st.session_state["market_analysis_result"] = result
             st.session_state["analysis_symbol"] = result["Symbol"]
+            st.session_state["research_symbol"] = result["Symbol"]
     except MarketDataError as error:
         st.error(str(error))
     except ValueError as error:
@@ -97,11 +112,8 @@ with st.container(horizontal=True):
         delta_color="off",
         border=True,
     )
-    st.metric(
-        "5-day return",
-        f'{result["5-Day Return (%)"]:+.2f}%',
-        border=True,
-    )
+
+st.caption(f'Five-day return: {result["5-Day Return (%)"]:+.2f}%')
 
 with st.container(border=True):
     st.subheader("Sentinel summary")
