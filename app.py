@@ -55,12 +55,12 @@ pages = {
     "Plan": [
         st.Page(
             "app_pages/Backtester.py",
-            title="Backtester",
+            title="Strategy validation",
             icon=":material/science:",
         ),
         st.Page(
             "app_pages/Trade_Planner.py",
-            title="Trade planner",
+            title="Trade planning",
             icon=":material/calculate:",
         ),
     ],

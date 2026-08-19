@@ -16,7 +16,7 @@ from backtesting.backtest import backtest
 
 
 st.set_page_config(
-    page_title="Sentinel AI Backtester",
+    page_title="Sentinel AI strategy validation",
     page_icon=":material/science:",
     layout="wide",
 )
@@ -25,35 +25,42 @@ st.set_page_config(
 RESULTS_FOLDER = PROJECT_ROOT / "backtesting" / "results"
 
 
-st.title(":material/science: Strategy backtester")
+with st.container(horizontal=True, vertical_alignment="center"):
+    with st.container():
+        st.title(":material/science: Strategy validation")
+        st.caption(
+            "Test Sentinel's historical behavior before turning an idea into "
+            "a risk-controlled trade plan."
+        )
+    st.badge("Historical simulation", icon=":material/history:", color="violet")
 
-st.caption(
-    "Test the Sentinel AI strategy against historical market data "
-    "without risking real money."
-)
-
-
-with st.sidebar:
-    st.subheader("Backtest settings")
-
-    symbol = st.text_input(
-        "Stock symbol",
-        value="AAPL",
-        max_chars=10,
-    ).strip().upper()
-
-    st.info(
-        "The current engine uses its existing risk controls, "
-        "EMA trend filter, ATR exits, and scoring rules."
+with st.container(horizontal=True):
+    st.page_link(
+        "app_pages/Trade_Planner.py",
+        label="Open trade planning",
+        icon=":material/calculate:",
     )
 
-
-run_backtest = st.button(
-    "Run backtest",
-    icon=":material/play_arrow:",
-    type="primary",
-    width="stretch",
+st.caption(
+    "The engine uses Sentinel's EMA trend filter, ATR exits, scoring rules, "
+    "and existing risk controls."
 )
+
+with st.form("backtest_settings", border=False):
+    settings_row = st.container(horizontal=True, vertical_alignment="bottom")
+    symbol = settings_row.text_input(
+        "Stock symbol",
+        value=st.session_state.get(
+            "strategy_symbol",
+            st.session_state.get("research_symbol", "AAPL"),
+        ),
+        max_chars=10,
+    ).strip().upper()
+    run_backtest = settings_row.form_submit_button(
+        "Run historical test",
+        icon=":material/play_arrow:",
+        type="primary",
+    )
 
 
 if run_backtest:
@@ -79,6 +86,8 @@ if run_backtest:
             else:
                 st.session_state["backtest_result"] = result
                 st.session_state["backtest_symbol"] = symbol
+                st.session_state["strategy_symbol"] = symbol
+                st.session_state["planner_symbol"] = symbol
 
                 st.success(
                     f"{symbol} backtest completed successfully."
@@ -94,52 +103,41 @@ saved_symbol = st.session_state.get("backtest_symbol")
 
 
 if result and saved_symbol:
-    st.subheader(f"{saved_symbol} Performance Summary")
+    st.subheader(f"{saved_symbol} performance summary")
 
-    metric_1, metric_2, metric_3, metric_4 = st.columns(4, border=True)
+    with st.container(horizontal=True):
+        st.metric("Trades", int(result.get("Trades", 0)), border=True)
+        st.metric(
+            "Win rate", f'{result.get("Win Rate", 0):.2f}%', border=True
+        )
+        st.metric(
+            "Strategy return",
+            f'{result.get("Strategy Return", 0):.2f}%',
+            border=True,
+        )
+        st.metric(
+            "Ending balance",
+            f'${result.get("Ending Balance", 0):,.2f}',
+            border=True,
+        )
 
-    metric_1.metric(
-        "Trades",
-        int(result.get("Trades", 0)),
-    )
-
-    metric_2.metric(
-        "Win Rate",
-        f'{result.get("Win Rate", 0):.2f}%',
-    )
-
-    metric_3.metric(
-        "Strategy Return",
-        f'{result.get("Strategy Return", 0):.2f}%',
-    )
-
-    metric_4.metric(
-        "Ending Balance",
-        f'${result.get("Ending Balance", 0):,.2f}',
-    )
-
-
-    metric_5, metric_6, metric_7, metric_8 = st.columns(4, border=True)
-
-    metric_5.metric(
-        "Net Profit",
-        f'${result.get("Net Profit", 0):,.2f}',
-    )
-
-    metric_6.metric(
-        "Profit Factor",
-        f'{result.get("Profit Factor", 0):.2f}',
-    )
-
-    metric_7.metric(
-        "Sharpe Ratio",
-        f'{result.get("Sharpe Ratio", 0):.2f}',
-    )
-
-    metric_8.metric(
-        "Maximum Drawdown",
-        f'{result.get("Max Drawdown", 0):.2f}%',
-    )
+    with st.container(horizontal=True):
+        st.metric(
+            "Net profit", f'${result.get("Net Profit", 0):,.2f}', border=True
+        )
+        st.metric(
+            "Profit factor",
+            f'{result.get("Profit Factor", 0):.2f}',
+            border=True,
+        )
+        st.metric(
+            "Sharpe ratio", f'{result.get("Sharpe Ratio", 0):.2f}', border=True
+        )
+        st.metric(
+            "Maximum drawdown",
+            f'{result.get("Max Drawdown", 0):.2f}%',
+            border=True,
+        )
 
 
     strategy_return = result.get(
@@ -152,7 +150,7 @@ if result and saved_symbol:
         0,
     )
 
-    st.subheader("Strategy Comparison")
+    st.subheader("Strategy comparison")
 
     comparison_dataframe = pd.DataFrame(
         {
@@ -194,7 +192,7 @@ if result and saved_symbol:
         / f"{saved_symbol}_equity_curve.png"
     )
 
-    st.subheader("Equity Curve")
+    st.subheader("Equity curve")
 
     if chart_path.exists():
         st.image(
@@ -219,7 +217,7 @@ if result and saved_symbol:
         / f"{saved_symbol}_backtest.csv"
     )
 
-    st.subheader("Individual Trades")
+    st.subheader("Individual trades")
 
     if trade_log_path.exists():
         trade_dataframe = pd.read_csv(
@@ -234,7 +232,6 @@ if result and saved_symbol:
         else:
             st.dataframe(
                 trade_dataframe,
-                width="stretch",
                 hide_index=True,
             )
 
@@ -243,7 +240,7 @@ if result and saved_symbol:
             ).encode("utf-8")
 
             st.download_button(
-                label="Download Trade Log",
+                label="Download trade log",
                 data=csv_data,
                 file_name=(
                     f"{saved_symbol}_backtest.csv"
@@ -260,6 +257,6 @@ if result and saved_symbol:
 
 else:
     st.info(
-        "Enter a stock symbol and click Run Backtest "
+        "Enter a stock symbol and run the historical test "
         "to generate historical performance results."
     )

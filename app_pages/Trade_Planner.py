@@ -44,15 +44,26 @@ def load_trade_defaults(symbol):
 
 
 st.set_page_config(
-    page_title="Sentinel AI trade planner",
+    page_title="Sentinel AI trade planning",
     page_icon=":material/calculate:",
     layout="wide",
 )
 
-st.title(":material/calculate: Trade planner")
-st.caption(
-    "Size a potential long position from the loss you can afford—not the profit you hope to make."
-)
+with st.container(horizontal=True, vertical_alignment="center"):
+    with st.container():
+        st.title(":material/calculate: Trade planning")
+        st.caption(
+            "Size a potential long position from the loss you can afford—not "
+            "the profit you hope to make."
+        )
+    st.badge("Risk first", icon=":material/security:", color="violet")
+
+with st.container(horizontal=True):
+    st.page_link(
+        "app_pages/Backtester.py",
+        label="Open strategy validation",
+        icon=":material/science:",
+    )
 
 portfolio = load_portfolio()
 cost_basis = sum(
@@ -64,13 +75,19 @@ default_account_value = max(
     float(portfolio.get("cash", 0.0)) + cost_basis,
 )
 
-st.session_state.setdefault("planner_symbol", "AAPL")
+st.session_state.setdefault(
+    "planner_symbol",
+    st.session_state.get(
+        "strategy_symbol",
+        st.session_state.get("research_symbol", "AAPL"),
+    ),
+)
 st.session_state.setdefault("planner_entry", 100.0)
 st.session_state.setdefault("planner_stop", 95.0)
 st.session_state.setdefault("planner_target", 110.0)
 
 with st.container(border=True):
-    st.subheader("Market defaults")
+    st.subheader("1 · Load market defaults")
     quote_row = st.container(horizontal=True, vertical_alignment="bottom")
     quote_symbol = quote_row.text_input(
         "Symbol",
@@ -93,6 +110,7 @@ with st.container(border=True):
             st.session_state["planner_stop"] = round(stop, 2)
             st.session_state["planner_target"] = round(target, 2)
             st.session_state["planner_atr"] = round(atr, 2)
+            st.session_state["strategy_symbol"] = clean_symbol
             st.session_state.pop("trade_plan", None)
             st.rerun()
         except (MarketDataError, ValueError) as error:
@@ -107,7 +125,7 @@ with st.container(border=True):
         )
 
 with st.form("trade_planner_form"):
-    st.subheader("Plan inputs")
+    st.subheader("2 · Define risk and prices")
     account_columns = st.columns(4)
     account_value = account_columns[0].number_input(
         "Account value ($)",
@@ -189,6 +207,7 @@ if submitted:
             "risk_percent": float(risk_percent),
             **plan,
         }
+        st.session_state["strategy_symbol"] = clean_symbol
     except ValueError as error:
         st.error(str(error))
 
@@ -197,13 +216,14 @@ if not plan:
     st.info("Enter your risk limits and prices, then calculate the trade plan.")
     st.stop()
 
-st.subheader(f'{plan["symbol"]} position plan')
+st.subheader(f'3 · Review the {plan["symbol"]} position plan')
 with st.container(horizontal=True):
     st.metric("Suggested shares", plan["suggested_shares"], border=True)
     st.metric("Position value", f'${plan["position_value"]:,.2f}', border=True)
     st.metric("Planned loss", f'${plan["planned_loss"]:,.2f}', border=True)
-    st.metric("Planned profit", f'${plan["planned_profit"]:,.2f}', border=True)
     st.metric("Reward / risk", f'{plan["reward_to_risk"]:.2f}R', border=True)
+
+st.caption(f'Planned profit at target: \\${plan["planned_profit"]:,.2f}')
 
 details_column, targets_column = st.columns(2)
 with details_column:
