@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
+from utils.cloud_storage import load_cloud_json, save_cloud_json
 from utils.symbols import normalize_legacy_symbol, normalize_symbol
 
 
@@ -17,13 +18,14 @@ def new_alert_state():
 
 def load_alert_state():
     """Load saved alerts and history, falling back safely when invalid."""
-    if not ALERTS_FILE.exists():
-        return new_alert_state()
-
-    try:
-        state = json.loads(ALERTS_FILE.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return new_alert_state()
+    state = load_cloud_json("alerts", new_alert_state())
+    if state is None:
+        if not ALERTS_FILE.exists():
+            return new_alert_state()
+        try:
+            state = json.loads(ALERTS_FILE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return new_alert_state()
 
     if not isinstance(state, dict):
         return new_alert_state()
@@ -49,6 +51,7 @@ def save_alert_state(state):
     temporary_file = ALERTS_FILE.with_suffix(".tmp")
     temporary_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
     temporary_file.replace(ALERTS_FILE)
+    save_cloud_json("alerts", state)
     return state
 
 

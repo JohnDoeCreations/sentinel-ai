@@ -5,6 +5,7 @@ import json
 import math
 from pathlib import Path
 
+from utils.cloud_storage import load_cloud_json, save_cloud_json
 from utils.symbols import normalize_legacy_symbol, normalize_symbol
 
 
@@ -75,13 +76,14 @@ def new_portfolio():
 
 def load_portfolio():
     """Load the saved portfolio or create a clean one when none exists."""
-    if not PORTFOLIO_FILE.exists():
-        return new_portfolio()
-
-    try:
-        portfolio = json.loads(PORTFOLIO_FILE.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return new_portfolio()
+    portfolio = load_cloud_json("paper_portfolio", new_portfolio())
+    if portfolio is None:
+        if not PORTFOLIO_FILE.exists():
+            return new_portfolio()
+        try:
+            portfolio = json.loads(PORTFOLIO_FILE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return new_portfolio()
 
     required_keys = {"starting_cash", "cash", "positions", "transactions"}
     if not isinstance(portfolio, dict) or not required_keys.issubset(portfolio):
@@ -143,6 +145,7 @@ def save_portfolio(portfolio):
         encoding="utf-8",
     )
     temporary_file.replace(PORTFOLIO_FILE)
+    save_cloud_json("paper_portfolio", portfolio)
     return portfolio
 
 

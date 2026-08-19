@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+from utils.cloud_storage import load_cloud_json, save_cloud_json
 from utils.symbols import normalize_symbol, parse_symbol_list
 
 
@@ -11,13 +12,14 @@ WATCHLIST_FILE = Path(__file__).resolve().parents[1] / "data" / "watchlist.json"
 
 def load_watchlist():
     """Return saved symbols, ignoring invalid or duplicate entries."""
-    if not WATCHLIST_FILE.exists():
-        return []
-
-    try:
-        saved_data = json.loads(WATCHLIST_FILE.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return []
+    saved_data = load_cloud_json("watchlist", [])
+    if saved_data is None:
+        if not WATCHLIST_FILE.exists():
+            return []
+        try:
+            saved_data = json.loads(WATCHLIST_FILE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return []
 
     if not isinstance(saved_data, list):
         return []
@@ -51,6 +53,7 @@ def save_watchlist(symbols):
         encoding="utf-8",
     )
     temporary_file.replace(WATCHLIST_FILE)
+    save_cloud_json("watchlist", clean_symbols)
     return clean_symbols
 
 
