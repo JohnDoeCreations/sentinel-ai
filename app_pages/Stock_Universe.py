@@ -198,9 +198,9 @@ with st.container(border=True):
         )
     ]
 
-    st.caption(f"{len(matching_symbols)} matching stocks")
+    st.caption(f"{len(matching_symbols)} available stocks found")
     matches_to_add = st.multiselect(
-        "Matching stocks",
+        "Choose from filtered stocks",
         options=matching_symbols,
         format_func=stock_label,
         max_selections=50,
@@ -288,6 +288,7 @@ if st.button(
                 selected_to_scan,
                 universe_symbols=universe["symbols"],
             )
+            st.session_state["latest_manual_scan_symbols"] = outcome["batch"]
             status.write("Scanned: " + ", ".join(outcome["batch"]))
             status.update(label="Selected-stock scan complete", state="complete")
             st.rerun()
@@ -301,6 +302,113 @@ results = [
     for symbol, result in scan_state["results"].items()
     if symbol in universe_symbol_set
 ]
+
+latest_symbols = [
+    symbol
+    for symbol in st.session_state.get("latest_manual_scan_symbols", [])
+    if symbol in universe_symbol_set
+]
+latest_results = [
+    scan_state["results"][symbol]
+    for symbol in latest_symbols
+    if symbol in scan_state["results"]
+]
+latest_errors = {
+    symbol: scan_state["errors"][symbol]
+    for symbol in latest_symbols
+    if symbol in scan_state["errors"]
+}
+
+if latest_results or latest_errors:
+    with st.container(border=True):
+        st.subheader(":material/analytics: Latest selected scan")
+        st.caption(
+            "These are the results from the stocks you most recently scanned."
+        )
+        if latest_results:
+            latest_table = pd.DataFrame(latest_results)
+            latest_table.insert(
+                0,
+                "Company",
+                latest_table["Symbol"].map(universe["companies"]).fillna(
+                    latest_table["Symbol"]
+                ),
+            )
+            latest_columns = [
+                "Company",
+                "Symbol",
+                "Price",
+                "Daily Change (%)",
+                "Score",
+                "Rating",
+                "Signal",
+                "RSI",
+                "MACD",
+                "Signal Line",
+                "5-Day Average",
+            ]
+            visible_latest_columns = [
+                column
+                for column in latest_columns
+                if column in latest_table.columns
+            ]
+            st.dataframe(
+                latest_table[visible_latest_columns],
+                hide_index=True,
+                column_config={
+                    "Price": st.column_config.NumberColumn(format="$%.2f"),
+                    "Daily Change (%)": st.column_config.NumberColumn(
+                        format="%.2f%%"
+                    ),
+                    "Score": st.column_config.ProgressColumn(
+                        min_value=0, max_value=4
+                    ),
+                    "RSI": st.column_config.NumberColumn(format="%.2f"),
+                    "MACD": st.column_config.NumberColumn(format="%.2f"),
+                    "Signal Line": st.column_config.NumberColumn(format="%.2f"),
+                    "5-Day Average": st.column_config.NumberColumn(format="$%.2f"),
+                },
+            )
+
+            detail_symbol = st.selectbox(
+                "Detailed result",
+                options=[result["Symbol"] for result in latest_results],
+                format_func=stock_label,
+                key="latest_scan_detail_symbol",
+            )
+            detail = next(
+                result
+                for result in latest_results
+                if result["Symbol"] == detail_symbol
+            )
+            with st.container(horizontal=True):
+                st.metric("Price", f'${detail["Price"]:,.2f}', border=True)
+                st.metric(
+                    "Daily change",
+                    f'{detail["Daily Change (%)"]:+.2f}%',
+                    border=True,
+                )
+                st.metric("Score", f'{detail["Score"]}/4', border=True)
+                st.metric("RSI", f'{detail["RSI"]:.2f}', border=True)
+                st.metric("Signal", detail["Signal"], border=True)
+
+            strengths_column, weaknesses_column = st.columns(2)
+            with strengths_column:
+                st.success("Strengths")
+                strengths = detail.get("Strengths") or ["No strengths detected."]
+                for strength in strengths:
+                    st.write(f"• {strength}")
+            with weaknesses_column:
+                st.error("Weaknesses")
+                weaknesses = detail.get("Weaknesses") or [
+                    "No weaknesses detected."
+                ]
+                for weakness in weaknesses:
+                    st.write(f"• {weakness}")
+
+        for symbol, message in latest_errors.items():
+            st.warning(f"{stock_label(symbol)} could not be scanned: {message}")
+
 if not results:
     st.info("Saved rankings will appear after the first background or manual batch.")
     st.stop()
@@ -335,7 +443,7 @@ filtered = filtered.sort_values(
 )
 
 with st.container(horizontal=True):
-    st.metric("Matching stocks", len(filtered), border=True)
+    st.metric("Filtered scan results", len(filtered), border=True)
     st.metric(
         "Bullish watches",
         int((filtered["Signal"] == "BULLISH WATCH").sum()),
