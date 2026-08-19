@@ -45,6 +45,11 @@ pages = {
             icon=":material/query_stats:",
         ),
         st.Page(
+            "app_pages/Stock_Universe.py",
+            title="Stock universe",
+            icon=":material/public:",
+        ),
+        st.Page(
             "app_pages/Watchlist.py",
             title="Watchlist",
             icon=":material/star:",

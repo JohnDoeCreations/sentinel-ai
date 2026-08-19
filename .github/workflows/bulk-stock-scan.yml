@@ -1,0 +1,29 @@
+name: Bulk stock universe scan
+
+on:
+  schedule:
+    - cron: "17,47 13-21 * * 1-5"
+  workflow_dispatch:
+
+concurrency:
+  group: sentinel-ai-bulk-stock-scan
+  cancel-in-progress: false
+
+jobs:
+  scan-stock-batch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      SENTINEL_BULK_BATCH_SIZE: "25"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - run: python scripts/run_bulk_scanner.py
