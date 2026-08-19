@@ -11,7 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from utils.bulk_scanner import load_bulk_scan_state, scan_next_batch
+from utils.bulk_scanner import load_bulk_scan_state, scan_selected_symbols
 from utils.scanner_engine import analyze_stock
 from utils.stock_universe import (
     fetch_sp500_symbols,
@@ -129,21 +129,33 @@ with st.container(border=True):
 st.subheader("Scanner results")
 st.caption(
     "The background job scans 25 symbols every 30 minutes during U.S. market "
-    "hours and gradually refreshes the entire universe."
+    "hours. For an immediate scan, choose the exact stocks you want below."
+)
+selected_to_scan = st.multiselect(
+    "Stocks to scan now",
+    options=universe["symbols"],
+    max_selections=50,
+    placeholder="Search and select up to 50 stocks",
 )
 if st.button(
-    "Scan next 25 now",
+    f"Scan selected ({len(selected_to_scan)})",
     icon=":material/play_arrow:",
-    help="This may take several minutes. The page shows progress when complete.",
+    type="primary",
+    disabled=not selected_to_scan,
+    help="Large selections may take several minutes.",
 ):
-    with st.status("Scanning the next batch...", expanded=True) as status:
+    with st.status("Scanning your selected stocks...", expanded=True) as status:
         try:
-            outcome = scan_next_batch(analyze_stock, batch_size=25)
-            status.write("Batch: " + ", ".join(outcome["batch"]))
-            status.update(label="Batch scan complete", state="complete")
+            outcome = scan_selected_symbols(
+                analyze_stock,
+                selected_to_scan,
+                universe_symbols=universe["symbols"],
+            )
+            status.write("Scanned: " + ", ".join(outcome["batch"]))
+            status.update(label="Selected-stock scan complete", state="complete")
             st.rerun()
         except Exception as error:
-            status.update(label=f"Batch scan failed: {error}", state="error")
+            status.update(label=f"Selected-stock scan failed: {error}", state="error")
 
 scan_state = load_bulk_scan_state()
 universe_symbol_set = set(universe["symbols"])

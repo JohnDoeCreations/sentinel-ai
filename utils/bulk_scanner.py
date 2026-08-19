@@ -53,13 +53,7 @@ def save_bulk_scan_state(state):
     return state
 
 
-def scan_next_batch(analyze_symbol, batch_size=25, symbols=None):
-    """Scan the next universe slice, persist results, and advance the cursor."""
-    universe_symbols = list(symbols or load_universe()["symbols"])
-    if not universe_symbols:
-        raise ValueError("The stock universe is empty.")
-    batch_size = max(1, min(int(batch_size), len(universe_symbols)))
-    state = load_bulk_scan_state()
+def _prune_state(state, universe_symbols):
     allowed_symbols = set(universe_symbols)
     state["results"] = {
         symbol: result
@@ -71,14 +65,11 @@ def scan_next_batch(analyze_symbol, batch_size=25, symbols=None):
         for symbol, message in state["errors"].items()
         if symbol in allowed_symbols
     }
-    cursor = int(state.get("cursor", 0)) % len(universe_symbols)
-    batch = [
-        universe_symbols[(cursor + offset) % len(universe_symbols)]
-        for offset in range(batch_size)
-    ]
-    completed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return state
 
-    for symbol in batch:
+
+def _scan_symbols(state, analyze_symbol, symbols, completed_at):
+    for symbol in symbols:
         try:
             result = analyze_symbol(symbol)
             if result is None:
@@ -89,6 +80,48 @@ def scan_next_batch(analyze_symbol, batch_size=25, symbols=None):
             state["errors"].pop(symbol, None)
         except Exception as error:
             state["errors"][symbol] = str(error)
+    return state
+
+
+def scan_selected_symbols(analyze_symbol, selected_symbols, universe_symbols=None):
+    """Scan an explicit user-selected subset without changing batch progress."""
+    universe_symbols = list(
+        universe_symbols if universe_symbols is not None else load_universe()["symbols"]
+    )
+    if not universe_symbols:
+        raise ValueError("The stock universe is empty.")
+    allowed = set(universe_symbols)
+    selected = list(dict.fromkeys(selected_symbols))
+    if not selected:
+        raise ValueError("Select at least one stock to scan.")
+    invalid = [symbol for symbol in selected if symbol not in allowed]
+    if invalid:
+        raise ValueError("Selected stocks must belong to the saved universe.")
+
+    state = _prune_state(load_bulk_scan_state(), universe_symbols)
+    completed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    _scan_symbols(state, analyze_symbol, selected, completed_at)
+    state["last_run_at"] = completed_at
+    state["last_batch_size"] = len(selected)
+    save_bulk_scan_state(state)
+    return {"batch": selected, "state": state}
+
+
+def scan_next_batch(analyze_symbol, batch_size=25, symbols=None):
+    """Scan the next universe slice, persist results, and advance the cursor."""
+    universe_symbols = list(symbols or load_universe()["symbols"])
+    if not universe_symbols:
+        raise ValueError("The stock universe is empty.")
+    batch_size = max(1, min(int(batch_size), len(universe_symbols)))
+    state = _prune_state(load_bulk_scan_state(), universe_symbols)
+    cursor = int(state.get("cursor", 0)) % len(universe_symbols)
+    batch = [
+        universe_symbols[(cursor + offset) % len(universe_symbols)]
+        for offset in range(batch_size)
+    ]
+    completed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    _scan_symbols(state, analyze_symbol, batch, completed_at)
 
     state["cursor"] = (cursor + batch_size) % len(universe_symbols)
     state["last_run_at"] = completed_at
