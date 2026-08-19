@@ -45,17 +45,61 @@ SIGNALS = [
 
 
 st.set_page_config(
-    page_title="Sentinel AI alerts",
+    page_title="Sentinel AI monitoring center",
     page_icon=":material/notifications:",
     layout="wide",
 )
-st.title(":material/notifications: Alerts")
-st.caption("Create persistent rules and monitor them against current market analysis.")
-st.info(
-    "Cloud monitoring checks enabled alerts every 30 minutes during regular "
-    "U.S. market hours—even when this page and your browser are closed. Newly "
-    "triggered alerts are also delivered by email."
+with st.container(horizontal=True, vertical_alignment="center"):
+    with st.container():
+        st.title(":material/notifications: Monitoring center")
+        st.caption(
+            "Track persistent market rules, position protection, and newly "
+            "triggered conditions."
+        )
+    st.badge(
+        "Cloud monitoring",
+        icon=":material/cloud_done:",
+        color="violet",
+    )
+
+st.caption(
+    "Enabled alerts are checked every 30 minutes during regular U.S. market "
+    "hours—even when the browser is closed. New triggers can also be emailed."
 )
+
+overview_state = load_alert_state()
+overview_alerts = overview_state["alerts"]
+overview_monitor = overview_state.get("monitor", {})
+overview_enabled = [
+    alert for alert in overview_alerts if alert.get("enabled", True)
+]
+overview_triggered = [
+    alert for alert in overview_enabled if alert.get("is_triggered")
+]
+
+with st.container(horizontal=True):
+    st.metric("Active rules", len(overview_enabled), border=True)
+    st.metric("Triggered now", len(overview_triggered), border=True)
+    st.metric(
+        "Last cloud check",
+        overview_monitor.get("last_checked_at") or "Not checked yet",
+        border=True,
+    )
+    st.metric(
+        "Check errors",
+        overview_monitor.get("errors", 0),
+        border=True,
+    )
+
+if overview_triggered:
+    with st.container(border=True):
+        st.subheader(":material/notification_important: Needs attention")
+        for alert in overview_triggered[:5]:
+            label = TYPE_LABELS.get(alert["type"], alert["type"])
+            st.warning(
+                f'**{alert["symbol"]}** · {label} {alert["target"]}',
+                icon=":material/notifications_active:",
+            )
 
 watchlist = load_watchlist()
 portfolio = load_portfolio()
@@ -71,7 +115,11 @@ preferred_symbol_index = (
     else 0
 )
 
-with st.expander("Create Alert", expanded=True):
+with st.expander(
+    "Create a monitoring rule",
+    icon=":material/add_alert:",
+    expanded=not bool(overview_alerts),
+):
     alert_label = st.selectbox("Condition", options=list(ALERT_TYPES))
     alert_type = ALERT_TYPES[alert_label]
 
@@ -127,7 +175,11 @@ with st.expander("Create Alert", expanded=True):
         st.success(f"Alert saved for {symbol}.")
         st.rerun()
 
-st.subheader("Monitoring")
+st.subheader("Monitor and manage")
+st.caption(
+    "Run an immediate check or enable a faster browser-based interval while "
+    "this page remains open."
+)
 monitor_controls = st.container(horizontal=True, vertical_alignment="bottom")
 automatic_monitoring = monitor_controls.toggle(
     "Automatic monitoring",
@@ -185,19 +237,11 @@ def alert_monitor():
             st.success("Alert check complete.")
 
     monitor = state.get("monitor", {})
-    with st.container(horizontal=True):
-        st.metric("Active alerts", enabled_count, border=True)
-        st.metric(
-            "Last check",
-            monitor.get("last_checked_at", "Never"),
-            border=True,
-        )
-        st.metric(
-            "New triggers",
-            monitor.get("new_triggers", 0),
-            border=True,
-        )
-        st.metric("Check errors", monitor.get("errors", 0), border=True)
+    st.caption(
+        f'Latest check: {monitor.get("last_checked_at") or "Not checked yet"} · '
+        f'{monitor.get("new_triggers", 0)} new triggers · '
+        f'{monitor.get("errors", 0)} errors'
+    )
 
     if automatic_monitoring:
         st.caption(
@@ -205,7 +249,7 @@ def alert_monitor():
             "This faster in-page check supplements the 30-minute cloud monitor."
         )
 
-    st.subheader("Saved alerts")
+    st.subheader("Active and saved rules")
     if not alerts:
         st.info("No alerts saved yet.")
     else:
@@ -263,7 +307,16 @@ def alert_monitor():
         history_table["Rule"] = history_table["Rule"].map(TYPE_LABELS).fillna(
             history_table["Rule"]
         )
-        st.dataframe(history_table, width="stretch", hide_index=True)
+        st.dataframe(
+            history_table,
+            hide_index=True,
+            column_config={
+                "Time (UTC)": st.column_config.DatetimeColumn(
+                    format="MMM DD, YYYY h:mm a"
+                ),
+                "Symbol": st.column_config.TextColumn(pinned=True),
+            },
+        )
     else:
         st.info("No alerts have triggered yet.")
 
