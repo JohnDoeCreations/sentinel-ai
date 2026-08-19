@@ -53,7 +53,8 @@ st.title(":material/notifications: Alerts")
 st.caption("Create persistent rules and monitor them against current market analysis.")
 st.info(
     "Cloud monitoring checks enabled alerts every 30 minutes during regular "
-    "U.S. market hours—even when this page and your browser are closed."
+    "U.S. market hours—even when this page and your browser are closed. Newly "
+    "triggered alerts are also delivered by email."
 )
 
 watchlist = load_watchlist()

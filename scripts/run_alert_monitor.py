@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from utils.alert_monitor import check_enabled_alerts
 from utils.cloud_storage import cloud_storage_enabled
+from utils.notifications import email_notifications_enabled, send_alert_email
 from utils.paper_trading import load_portfolio
 from utils.scanner_engine import analyze_stock
 
@@ -44,11 +45,16 @@ def main():
         analyze_stock,
         positions=portfolio.get("positions", {}),
     )
+    email_sent = False
+    if result["newly_triggered"] and email_notifications_enabled():
+        send_alert_email(result["newly_triggered"])
+        email_sent = True
     print(
         "Alert check complete: "
         f"{result['checked']} checked, "
         f"{len(result['newly_triggered'])} new triggers, "
-        f"{len(result['errors'])} errors."
+        f"{len(result['errors'])} errors, "
+        f"email {'sent' if email_sent else 'not needed'}."
     )
     return 1 if result["errors"] else 0
 

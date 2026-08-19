@@ -18,6 +18,8 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
       SENTINEL_FORCE_ALERT_CHECK: ${{ github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v6
