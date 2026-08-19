@@ -24,19 +24,19 @@ from utils.stock_universe import (
 
 
 st.set_page_config(
-    page_title="Sentinel AI stock universe",
-    page_icon=":material/public:",
+    page_title="Discover stocks with Sentinel AI",
+    page_icon=":material/travel_explore:",
     layout="wide",
 )
 
 with st.container(horizontal=True, vertical_alignment="center"):
     with st.container():
-        st.title(":material/public: Stock universe")
+        st.title(":material/travel_explore: Discover stocks")
         st.caption(
-            "Build a focused market universe, select opportunities, and run "
-            "on-demand analysis from one workspace."
+            "Build your market universe, scan exact stocks, and review ranked "
+            "opportunities from one research workspace."
         )
-    st.badge("Research workspace", icon=":material/neurology:", color="violet")
+    st.badge("Discovery workspace", icon=":material/neurology:", color="violet")
 
 universe = load_universe()
 scan_state = load_bulk_scan_state()
@@ -49,7 +49,7 @@ with st.container(horizontal=True):
 
 st.caption(f'Last background scan: {scan_state["last_run_at"] or "Not run yet"}')
 
-st.markdown("### 1 · Choose your market")
+st.markdown("### 1 · Choose your universe")
 st.caption("Your saved universe defines which stocks are available for research.")
 configure_universe = st.toggle(
     "Change or import stock universe",
@@ -183,7 +183,7 @@ st.session_state["universe_scan_basket"] = [
     if symbol in universe["symbols"]
 ][:50]
 
-st.markdown("### 2 · Build your scan")
+st.markdown("### 2 · Select stocks")
 st.caption("Search by company, ticker, or sector, then add up to 50 stocks.")
 with st.container(border=True):
     st.markdown("#### Find stocks")
@@ -278,7 +278,7 @@ with st.container(border=True):
         height=260,
     )
 
-st.markdown("### 3 · Analyze and review")
+st.markdown("### 3 · Scan and review")
 st.caption(
     "The background job scans 25 symbols every 30 minutes during U.S. market "
     "hours. For an immediate scan, choose the exact stocks you want below."
