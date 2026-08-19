@@ -2,18 +2,18 @@
 
 [theme]
 base = "dark"
-primaryColor = "#60A5FA"
-backgroundColor = "#0F172A"
-secondaryBackgroundColor = "#1E293B"
-codeBackgroundColor = "#1E293B"
-textColor = "#F1F5F9"
-linkColor = "#60A5FA"
-borderColor = "#334155"
-codeTextColor = "#CBD5E1"
+primaryColor = "#8B5CF6"
+backgroundColor = "#07060B"
+secondaryBackgroundColor = "#171022"
+codeBackgroundColor = "#171022"
+textColor = "#F5F3FF"
+linkColor = "#B794F6"
+borderColor = "#332544"
+codeTextColor = "#D8D1E3"
 showWidgetBorder = true
 showSidebarBorder = true
-baseRadius = "8px"
-buttonRadius = "8px"
+baseRadius = "12px"
+buttonRadius = "10px"
 
 font = "'Inter':https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
 headingFont = "'Inter':https://fonts.googleapis.com/css2?family=Inter:wght@600;700&display=swap"
@@ -29,44 +29,44 @@ greenColor = "#34D399"
 redColor = "#F87171"
 yellowColor = "#FBBF24"
 orangeColor = "#FB923C"
-blueColor = "#60A5FA"
-violetColor = "#A78BFA"
-grayColor = "#94A3B8"
+blueColor = "#818CF8"
+violetColor = "#8B5CF6"
+grayColor = "#A9A2B8"
 
 chartCategoricalColors = [
-    "#60A5FA",
+    "#8B5CF6",
     "#34D399",
-    "#A78BFA",
+    "#B794F6",
     "#F87171",
     "#FBBF24",
-    "#38BDF8",
-    "#94A3B8",
+    "#818CF8",
+    "#A9A2B8",
     "#FB923C",
 ]
 
 chartSequentialColors = [
-    "#0C4A6E",
-    "#075985",
-    "#0369A1",
-    "#0284C7",
-    "#0EA5E9",
-    "#38BDF8",
-    "#7DD3FC",
-    "#BAE6FD",
-    "#E0F2FE",
-    "#F0F9FF",
+    "#160D24",
+    "#211132",
+    "#30154A",
+    "#431C68",
+    "#5B278C",
+    "#7439AC",
+    "#8B5CF6",
+    "#A78BFA",
+    "#C4B5FD",
+    "#EDE9FE",
 ]
 
-dataframeBorderColor = "#334155"
-dataframeHeaderBackgroundColor = "#1E293B"
+dataframeBorderColor = "#332544"
+dataframeHeaderBackgroundColor = "#171022"
 
 [theme.sidebar]
-backgroundColor = "#0B1220"
-secondaryBackgroundColor = "#172033"
-codeBackgroundColor = "#172033"
-textColor = "#F1F5F9"
-borderColor = "#334155"
-primaryColor = "#60A5FA"
+backgroundColor = "#0D0914"
+secondaryBackgroundColor = "#171022"
+codeBackgroundColor = "#171022"
+textColor = "#F5F3FF"
+borderColor = "#2D203C"
+primaryColor = "#8B5CF6"
 
 [server]
 headless = true

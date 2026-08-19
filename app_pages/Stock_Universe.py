@@ -29,11 +29,14 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title(":material/public: Stock universe")
-st.caption(
-    "Manage hundreds of stocks and review saved scanner rankings without "
-    "waiting for the entire universe to refresh in the browser."
-)
+with st.container(horizontal=True, vertical_alignment="center"):
+    with st.container():
+        st.title(":material/public: Stock universe")
+        st.caption(
+            "Build a focused market universe, select opportunities, and run "
+            "on-demand analysis from one workspace."
+        )
+    st.badge("Research workspace", icon=":material/neurology:", color="violet")
 
 universe = load_universe()
 scan_state = load_bulk_scan_state()
@@ -43,19 +46,29 @@ with st.container(horizontal=True):
     st.metric("Saved symbols", len(universe["symbols"]), border=True)
     st.metric("Analyzed symbols", len(scan_state["results"]), border=True)
     st.metric("Scan errors", len(scan_state["errors"]), border=True)
-    st.metric("Last background scan", scan_state["last_run_at"] or "Never", border=True)
 
-st.subheader("Build the universe")
-method = st.segmented_control(
-    "Import method",
-    ["Index presets", "Paste symbols", "Upload CSV"],
-    default="Index presets",
+st.caption(f'Last background scan: {scan_state["last_run_at"] or "Not run yet"}')
+
+st.markdown("### 1 · Choose your market")
+st.caption("Your saved universe defines which stocks are available for research.")
+configure_universe = st.toggle(
+    "Change or import stock universe",
+    value=not bool(universe["symbols"]),
+    help="Open the universe builder only when you want to replace the saved list.",
 )
+if configure_universe:
+    method = st.segmented_control(
+        "Import method",
+        ["Index presets", "Paste symbols", "Upload CSV"],
+        default="Index presets",
+    )
+else:
+    method = None
 
 if method == "Index presets":
     sp500_tab, nasdaq_tab = st.tabs(["S&P 500", "NASDAQ-100"])
     with sp500_tab:
-        st.info(
+        st.caption(
             "Load the maintained S&P 500 constituent list. Share-class dots "
             "are converted to Yahoo-compatible dashes."
         )
@@ -81,7 +94,7 @@ if method == "Index presets":
             except Exception as error:
                 st.error(f"Could not load the S&P 500 preset: {error}")
     with nasdaq_tab:
-        st.info(
+        st.caption(
             "Load the maintained NASDAQ-100 list of major non-financial "
             "companies listed on the Nasdaq exchange."
         )
@@ -170,8 +183,10 @@ st.session_state["universe_scan_basket"] = [
     if symbol in universe["symbols"]
 ][:50]
 
+st.markdown("### 2 · Build your scan")
+st.caption("Search by company, ticker, or sector, then add up to 50 stocks.")
 with st.container(border=True):
-    st.subheader("Find stocks")
+    st.markdown("#### Find stocks")
     filter_controls = st.container(horizontal=True)
     search = filter_controls.text_input(
         "Company or symbol",
@@ -208,13 +223,23 @@ with st.container(border=True):
         key="universe_match_picker",
     )
 
-    add_column, add_all_column, clear_column = st.columns(3)
-    if add_column.button(
-        "Add selected",
-        icon=":material/add:",
-        disabled=not matches_to_add,
-        width="stretch",
-    ):
+    with st.container(horizontal=True):
+        add_selected = st.button(
+            "Add selected",
+            icon=":material/add:",
+            disabled=not matches_to_add,
+        )
+        add_filtered = st.button(
+            "Add all filtered",
+            icon=":material/playlist_add:",
+            disabled=not matching_symbols,
+        )
+        clear_selected = st.button(
+            "Clear selection",
+            icon=":material/clear_all:",
+            disabled=not st.session_state["universe_scan_basket"],
+        )
+    if add_selected:
         combined = list(
             dict.fromkeys(
                 st.session_state["universe_scan_basket"] + matches_to_add
@@ -222,12 +247,7 @@ with st.container(border=True):
         )
         st.session_state["universe_scan_basket"] = combined[:50]
         st.rerun()
-    if add_all_column.button(
-        "Add all filtered",
-        icon=":material/playlist_add:",
-        disabled=not matching_symbols,
-        width="stretch",
-    ):
+    if add_filtered:
         combined = list(
             dict.fromkeys(
                 st.session_state["universe_scan_basket"] + matching_symbols
@@ -235,12 +255,7 @@ with st.container(border=True):
         )
         st.session_state["universe_scan_basket"] = combined[:50]
         st.rerun()
-    if clear_column.button(
-        "Clear selection",
-        icon=":material/clear_all:",
-        disabled=not st.session_state["universe_scan_basket"],
-        width="stretch",
-    ):
+    if clear_selected:
         st.session_state["universe_scan_basket"] = []
         st.rerun()
 
@@ -263,7 +278,7 @@ with st.container(border=True):
         height=260,
     )
 
-st.subheader("Scanner results")
+st.markdown("### 3 · Analyze and review")
 st.caption(
     "The background job scans 25 symbols every 30 minutes during U.S. market "
     "hours. For an immediate scan, choose the exact stocks you want below."

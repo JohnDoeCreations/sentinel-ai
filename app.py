@@ -3,6 +3,7 @@
 import streamlit as st
 
 from utils.data_management import DataRestoreError, ensure_daily_backup
+from utils.ui import apply_sentinel_style
 
 
 st.set_page_config(
@@ -11,6 +12,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+apply_sentinel_style()
 
 # Protect local personal data once per day without including API secrets.
 backup_warning = None
@@ -110,7 +112,7 @@ pages = {
 
 with st.sidebar:
     st.markdown("## :material/shield: Sentinel AI")
-    st.caption("Market intelligence and simulated execution")
+    st.caption("Intelligence for decisive markets")
 
 page = st.navigation(pages, position="sidebar", expanded=True)
 
