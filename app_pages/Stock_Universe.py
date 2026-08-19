@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from utils.bulk_scanner import load_bulk_scan_state, scan_selected_symbols
 from utils.scanner_engine import analyze_stock
 from utils.stock_universe import (
+    fetch_nasdaq100_symbols,
     fetch_sp500_symbols,
     load_universe,
     parse_universe_csv,
@@ -47,30 +48,54 @@ with st.container(horizontal=True):
 st.subheader("Build the universe")
 method = st.segmented_control(
     "Import method",
-    ["S&P 500 preset", "Paste symbols", "Upload CSV"],
-    default="S&P 500 preset",
+    ["Index presets", "Paste symbols", "Upload CSV"],
+    default="Index presets",
 )
 
-if method == "S&P 500 preset":
-    st.info(
-        "Loads the maintained open S&P 500 constituent list. Share-class dots "
-        "are converted to Yahoo-compatible dashes."
-    )
-    if st.button(
-        "Load current S&P 500",
-        icon=":material/download:",
-        type="primary",
-    ):
-        try:
-            with st.spinner("Loading the current constituent list..."):
-                symbols, invalid = fetch_sp500_symbols()
-                saved, _ = save_universe(symbols, "S&P 500")
-            st.success(f'Saved {len(saved["symbols"])} symbols.')
-            if invalid:
-                st.warning(f"Skipped {len(invalid)} invalid symbol(s).")
-            st.rerun()
-        except Exception as error:
-            st.error(f"Could not load the S&P 500 preset: {error}")
+if method == "Index presets":
+    sp500_tab, nasdaq_tab = st.tabs(["S&P 500", "NASDAQ-100"])
+    with sp500_tab:
+        st.info(
+            "Load the maintained S&P 500 constituent list. Share-class dots "
+            "are converted to Yahoo-compatible dashes."
+        )
+        if st.button(
+            "Load current S&P 500",
+            icon=":material/download:",
+            type="primary",
+            key="load_sp500_preset",
+        ):
+            try:
+                with st.spinner("Loading the current S&P 500 list..."):
+                    symbols, invalid = fetch_sp500_symbols()
+                    saved, _ = save_universe(symbols, "S&P 500")
+                st.success(f'Saved {len(saved["symbols"])} symbols.')
+                if invalid:
+                    st.warning(f"Skipped {len(invalid)} invalid symbol(s).")
+                st.rerun()
+            except Exception as error:
+                st.error(f"Could not load the S&P 500 preset: {error}")
+    with nasdaq_tab:
+        st.info(
+            "Load the maintained NASDAQ-100 list of major non-financial "
+            "companies listed on the Nasdaq exchange."
+        )
+        if st.button(
+            "Load current NASDAQ-100",
+            icon=":material/download:",
+            type="primary",
+            key="load_nasdaq100_preset",
+        ):
+            try:
+                with st.spinner("Loading the current NASDAQ-100 list..."):
+                    symbols, invalid = fetch_nasdaq100_symbols()
+                    saved, _ = save_universe(symbols, "NASDAQ-100")
+                st.success(f'Saved {len(saved["symbols"])} symbols.')
+                if invalid:
+                    st.warning(f"Skipped {len(invalid)} invalid symbol(s).")
+                st.rerun()
+            except Exception as error:
+                st.error(f"Could not load the NASDAQ-100 preset: {error}")
 elif method == "Paste symbols":
     with st.form("paste_universe_form"):
         universe_name = st.text_input("Universe name", value="Custom universe")

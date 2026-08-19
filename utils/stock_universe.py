@@ -17,6 +17,10 @@ SP500_SOURCE = (
     "https://raw.githubusercontent.com/datasets/"
     "s-and-p-500-companies/main/data/constituents.csv"
 )
+NASDAQ100_SOURCE = (
+    "https://raw.githubusercontent.com/Gary-Strauss/"
+    "NASDAQ100_Constituents/master/data/nasdaq100_constituents.csv"
+)
 
 
 def new_universe():
@@ -68,6 +72,16 @@ def fetch_sp500_symbols(timeout=20):
     symbols, invalid = parse_universe_csv(response.text)
     if len(symbols) < 450:
         raise ValueError("The S&P 500 source returned an incomplete list.")
+    return symbols, invalid
+
+
+def fetch_nasdaq100_symbols(timeout=20):
+    """Fetch the maintained open NASDAQ-100 constituent preset."""
+    response = requests.get(NASDAQ100_SOURCE, timeout=timeout)
+    response.raise_for_status()
+    symbols, invalid = parse_universe_csv(response.text)
+    if len(symbols) < 90:
+        raise ValueError("The NASDAQ-100 source returned an incomplete list.")
     return symbols, invalid
 
 
