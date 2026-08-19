@@ -14,6 +14,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from data.market_data import get_stock_data
 from utils.paper_trading import load_portfolio, record_equity_snapshot
+from utils.portfolio_analytics import (
+    concentration_summary,
+    enrich_position_rows,
+    equity_drawdown,
+)
 
 
 def latest_price(symbol):
@@ -75,6 +80,9 @@ for symbol, position in portfolio["positions"].items():
 portfolio_value = cash + market_value
 total_profit = portfolio_value - starting_cash
 total_return_percent = (total_profit / starting_cash) * 100
+position_rows = enrich_position_rows(position_rows, portfolio_value)
+invested_cost_basis = sum(row["Cost Basis"] for row in position_rows)
+concentration = concentration_summary(position_rows)
 
 sell_transactions = [
     transaction
@@ -98,25 +106,27 @@ closed_trade_win_rate = (
 
 record_equity_snapshot(portfolio_value, cash, market_value)
 portfolio = load_portfolio()
+history, maximum_drawdown = equity_drawdown(portfolio.get("equity_history", []))
 
-metric_1, metric_2, metric_3, metric_4 = st.columns(4, border=True)
-metric_1.metric("Portfolio Value", f"${portfolio_value:,.2f}")
-metric_2.metric(
-    "Total Return",
-    f"${total_profit:,.2f}",
-    delta=f"{total_return_percent:.2f}%",
-)
-metric_3.metric("Realized P/L", f"${realized_profit:,.2f}")
-metric_4.metric("Unrealized P/L", f"${unrealized_profit:,.2f}")
+with st.container(horizontal=True):
+    st.metric("Portfolio value", f"${portfolio_value:,.2f}", border=True)
+    st.metric(
+        "Total return",
+        f"${total_profit:,.2f}",
+        delta=f"{total_return_percent:.2f}%",
+        border=True,
+    )
+    st.metric("Realized P/L", f"${realized_profit:,.2f}", border=True)
+    st.metric("Unrealized P/L", f"${unrealized_profit:,.2f}", border=True)
 
-secondary_1, secondary_2, secondary_3, secondary_4 = st.columns(4, border=True)
-secondary_1.metric("Available Cash", f"${cash:,.2f}")
-secondary_2.metric("Invested Value", f"${market_value:,.2f}")
-secondary_3.metric("Open Positions", len(position_rows))
-secondary_4.metric("Closed-Sale Win Rate", f"{closed_trade_win_rate:.2f}%")
+with st.container(horizontal=True):
+    st.metric("Available cash", f"${cash:,.2f}", border=True)
+    st.metric("Invested value", f"${market_value:,.2f}", border=True)
+    st.metric("Invested cost basis", f"${invested_cost_basis:,.2f}", border=True)
+    st.metric("Maximum drawdown", f"{maximum_drawdown:.2f}%", border=True)
+    st.metric("Closed-sale win rate", f"{closed_trade_win_rate:.2f}%", border=True)
 
-st.subheader("Portfolio Equity Curve")
-history = pd.DataFrame(portfolio.get("equity_history", []))
+st.subheader("Portfolio equity curve")
 if history.empty:
     st.info("Equity history will appear after the first portfolio snapshot.")
 else:
@@ -153,7 +163,31 @@ else:
         config={"displaylogo": False, "scrollZoom": True},
     )
 
-st.subheader("Open-Position Performance")
+st.subheader("Allocation and concentration")
+if position_rows:
+    allocation_table = pd.DataFrame(position_rows).sort_values(
+        "Allocation (%)", ascending=False
+    )
+    st.bar_chart(
+        allocation_table,
+        x="Symbol",
+        y="Allocation (%)",
+        horizontal=True,
+    )
+    if concentration["concentrated_symbols"]:
+        names = ", ".join(concentration["concentrated_symbols"])
+        st.warning(
+            f"Concentration risk: {names} exceed 25% of total portfolio value. "
+            "Consider whether that exposure matches your risk plan."
+        )
+    else:
+        st.success(
+            "No individual holding exceeds 25% of total portfolio value."
+        )
+else:
+    st.info("Allocation analysis will appear after you open a position.")
+
+st.subheader("Open-position performance")
 if position_rows:
     positions_table = pd.DataFrame(position_rows).sort_values(
         "Return (%)",
@@ -174,11 +208,26 @@ if position_rows:
             f'({worst_position["Return (%)"]:+.2f}%)'
         )
 
-    st.dataframe(positions_table, width="stretch", hide_index=True)
+    st.dataframe(
+        positions_table,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Average Cost": st.column_config.NumberColumn(format="$%.2f"),
+            "Current Price": st.column_config.NumberColumn(format="$%.2f"),
+            "Cost Basis": st.column_config.NumberColumn(format="$%.2f"),
+            "Market Value": st.column_config.NumberColumn(format="$%.2f"),
+            "Unrealized P/L": st.column_config.NumberColumn(format="$%.2f"),
+            "Return (%)": st.column_config.NumberColumn(format="%.2f%%"),
+            "Allocation (%)": st.column_config.ProgressColumn(
+                format="%.2f%%", min_value=0, max_value=100
+            ),
+        },
+    )
 else:
     st.info("Open a simulated position to begin position-level tracking.")
 
-st.subheader("Closed Sales")
+st.subheader("Closed sales")
 if sell_transactions:
     closed_table = pd.DataFrame(reversed(sell_transactions)).rename(
         columns={
@@ -202,6 +251,11 @@ if sell_transactions:
         closed_table[display_columns],
         width="stretch",
         hide_index=True,
+        column_config={
+            "Sale Price": st.column_config.NumberColumn(format="$%.2f"),
+            "Proceeds": st.column_config.NumberColumn(format="$%.2f"),
+            "Realized P/L": st.column_config.NumberColumn(format="$%.2f"),
+        },
     )
 else:
     st.info("Closed-trade statistics will appear after the first simulated sale.")
