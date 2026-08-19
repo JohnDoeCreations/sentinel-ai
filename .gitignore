@@ -1,0 +1,29 @@
+# Python environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Streamlit secrets and local runtime output
+.streamlit/secrets.toml
+streamlit.stdout.log
+streamlit.stderr.log
+*.log
+
+# Local recovery and temporary files
+*.backup-*
+*.tmp
+backups/
+.cache/
+
+# Personal and generated trading data
+data/*.json
+backtesting/results/
+
+# Editor and operating-system metadata
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
