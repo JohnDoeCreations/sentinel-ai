@@ -13,6 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.kalshi_collector import collect_forecast_cycle
+from utils.kalshi_collector_status import save_collector_status
 
 
 def load_api_key():
@@ -37,6 +38,7 @@ def main():
         raise SystemExit("MASSIVE_API_KEY is required in the environment or Streamlit secrets.")
     while True:
         report = collect_forecast_cycle(api_key)
+        save_collector_status(report)
         print(
             f"markets={report['markets']} recorded={report['recorded']} "
             f"settled={report['settled']} skipped={report['skipped']} "

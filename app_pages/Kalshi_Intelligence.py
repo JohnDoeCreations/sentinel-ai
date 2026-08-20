@@ -31,6 +31,7 @@ from utils.kalshi_journal import (
     summarize_forecasts,
     update_forecast_results,
 )
+from utils.kalshi_collector_status import collector_health, load_collector_status
 
 
 st.set_page_config(
@@ -65,6 +66,33 @@ st.warning(
     "Contract prices represent market-implied probabilities, not Sentinel forecasts.",
     icon=":material/shield:",
 )
+
+collector_status = load_collector_status()
+health = collector_health(collector_status)
+with st.container(border=True):
+    health_row = st.container(horizontal=True, vertical_alignment="center")
+    health_row.markdown("**Automatic collector**")
+    health_row.badge(
+        health["label"],
+        icon=":material/monitor_heart:",
+        color=health["color"],
+    )
+    if collector_status:
+        with st.container(horizontal=True):
+            st.metric("Markets scanned", collector_status["markets"])
+            st.metric("Forecasts recorded", collector_status["recorded"])
+            st.metric("Settlements updated", collector_status["settled"])
+            st.metric("Cycle warnings", len(collector_status.get("errors", [])))
+        st.caption(
+            f'Last cycle: {collector_status["last_run"]} · '
+            f'{health["age_minutes"]:.1f} minutes ago · scheduled every 5 minutes.'
+        )
+        if collector_status.get("errors"):
+            with st.expander("Collector warnings", icon=":material/warning:"):
+                for error in collector_status["errors"]:
+                    st.caption(error)
+    else:
+        st.caption("No collector heartbeat has been recorded on this machine yet.")
 
 selected_assets = st.pills(
     "Crypto markets",
