@@ -242,6 +242,7 @@ with live_tab:
                             )
                         st.caption(
                             f'{forecast["method"]} · '
+                            f'{forecast["data_provider"]} · '
                             f'{forecast["minutes_remaining"]:.1f} minutes remaining · '
                             "Experimental and not yet validated on forward results."
                         )

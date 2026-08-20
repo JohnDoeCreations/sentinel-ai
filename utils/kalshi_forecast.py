@@ -39,6 +39,7 @@ def estimate_direction_probability(bars, close_time, now=None):
         "minute_volatility": minute_volatility,
         "minutes_remaining": remaining_minutes,
         "method": "Volatility-adjusted distance baseline",
+        "data_provider": bars.attrs.get("provider", "Unknown"),
     }
 
 
