@@ -29,6 +29,7 @@ from utils.kalshi_journal import (
     evaluate_forecasts,
     forecast_breakdowns,
     load_forecast_journal,
+    paper_test_progress,
     record_forecast,
     summarize_forecasts,
     update_forecast_results,
@@ -444,6 +445,26 @@ with portfolio_tab:
 with journal_tab:
     journal = load_forecast_journal()
     summary = summarize_forecasts(journal)
+    test_progress = paper_test_progress(journal)
+    with st.container(border=True):
+        progress_header = st.container(horizontal=True, vertical_alignment="center")
+        progress_header.markdown("**Live paper-test progress**")
+        progress_header.badge(
+            test_progress["stage"],
+            icon=":material/science:",
+            color="violet",
+        )
+        st.caption(test_progress["message"])
+        st.markdown(
+            f'First review · {test_progress["settled"]} / '
+            f'{test_progress["baseline_target"]} settled forecasts'
+        )
+        st.progress(test_progress["baseline_progress"])
+        st.markdown(
+            f'Stronger evaluation · {test_progress["settled"]} / '
+            f'{test_progress["evaluation_target"]} settled forecasts'
+        )
+        st.progress(test_progress["evaluation_progress"])
     with st.container(horizontal=True):
         st.metric("Recorded", summary["total"], border=True)
         st.metric("Settled", summary["settled"], border=True)
@@ -562,6 +583,15 @@ with journal_tab:
         st.caption(
             "Breakdowns are experimental. Treat small groups as observations, not "
             "evidence of a repeatable forecasting advantage."
+        )
+
+        export_table = pd.DataFrame(journal)
+        st.download_button(
+            "Download paper-test data",
+            data=export_table.to_csv(index=False).encode("utf-8"),
+            file_name="sentinel_kalshi_paper_test.csv",
+            mime="text/csv",
+            icon=":material/download:",
         )
 
         journal_table = pd.DataFrame(reversed(journal)).rename(

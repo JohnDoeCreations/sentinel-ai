@@ -7,6 +7,7 @@ from utils.kalshi_journal import (
     evaluate_forecasts,
     forecast_breakdowns,
     load_forecast_journal,
+    paper_test_progress,
     record_forecast,
     summarize_forecasts,
     update_forecast_results,
@@ -117,6 +118,23 @@ class KalshiJournalTests(unittest.TestCase):
         self.assertEqual(evaluation["settled"], 0)
         self.assertIsNone(evaluation["sentinel_brier"])
         self.assertEqual(evaluation["calibration"], [])
+
+    def test_paper_test_progress_uses_cautious_sample_milestones(self):
+        settled_row = {
+            "result": "yes", "probability_yes": 0.6,
+            "market_probability": 0.5,
+        }
+        baseline = paper_test_progress([settled_row] * 3)
+        self.assertEqual(baseline["stage"], "Collecting baseline")
+        self.assertAlmostEqual(baseline["baseline_progress"], 0.1)
+
+        early = paper_test_progress([settled_row] * 30)
+        self.assertEqual(early["stage"], "Early review available")
+        self.assertEqual(early["baseline_progress"], 1.0)
+
+        evaluation = paper_test_progress([settled_row] * 100)
+        self.assertEqual(evaluation["stage"], "Evaluation sample available")
+        self.assertEqual(evaluation["evaluation_progress"], 1.0)
 
 
 if __name__ == "__main__":

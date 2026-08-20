@@ -222,3 +222,27 @@ def evaluate_forecasts(rows=None, bin_width=0.2):
         "average_disagreement": sum(disagreements) / len(disagreements),
         "calibration": calibration,
     }
+
+
+def paper_test_progress(rows=None):
+    """Describe paper-test progress without overstating model readiness."""
+    evaluation = evaluate_forecasts(rows)
+    settled = evaluation["settled"]
+    if settled < 30:
+        stage = "Collecting baseline"
+        message = f"{30 - settled} more settled forecasts needed for the first review."
+    elif settled < 100:
+        stage = "Early review available"
+        message = f"{100 - settled} more settled forecasts recommended for a stronger review."
+    else:
+        stage = "Evaluation sample available"
+        message = "Review calibration, stability by asset, and performance across market conditions."
+    return {
+        "stage": stage,
+        "message": message,
+        "settled": settled,
+        "baseline_target": 30,
+        "evaluation_target": 100,
+        "baseline_progress": min(settled / 30, 1.0),
+        "evaluation_progress": min(settled / 100, 1.0),
+    }
