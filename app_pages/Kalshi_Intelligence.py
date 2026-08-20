@@ -26,6 +26,7 @@ from utils.kalshi_forecast import (
     forecast_decision,
 )
 from utils.kalshi_journal import (
+    evaluate_forecasts,
     forecast_breakdowns,
     load_forecast_journal,
     record_forecast,
@@ -482,6 +483,65 @@ with journal_tab:
             st.rerun()
     if journal:
         breakdowns = forecast_breakdowns(journal)
+        evaluation = evaluate_forecasts(journal)
+        st.markdown("#### Sentinel versus Kalshi")
+        with st.container(horizontal=True):
+            st.metric(
+                "Sentinel Brier score",
+                f'{evaluation["sentinel_brier"]:.3f}'
+                if evaluation["sentinel_brier"] is not None else "—",
+                border=True,
+            )
+            st.metric(
+                "Kalshi market Brier score",
+                f'{evaluation["market_brier"]:.3f}'
+                if evaluation["market_brier"] is not None else "—",
+                border=True,
+            )
+            st.metric(
+                "Sentinel Brier advantage",
+                f'{evaluation["brier_advantage"]:+.3f}'
+                if evaluation["brier_advantage"] is not None else "—",
+                help="Positive means Sentinel has a lower (better) Brier score than the recorded Kalshi probability.",
+                border=True,
+            )
+            st.metric(
+                "Average disagreement",
+                f'{evaluation["average_disagreement"]:.1%}'
+                if evaluation["average_disagreement"] is not None else "—",
+                border=True,
+            )
+        if evaluation["settled"] < 30:
+            st.info(
+                f'Only {evaluation["settled"]} forecasts have settled. Collect at least '
+                "30 before treating comparisons as an early signal, and substantially "
+                "more before considering any model reliable.",
+                icon=":material/hourglass_top:",
+            )
+        if evaluation["calibration"]:
+            calibration_table = pd.DataFrame(evaluation["calibration"])
+            with st.container(border=True):
+                st.markdown("**Probability calibration**")
+                st.caption(
+                    "A calibrated forecast's average probability should be close to "
+                    "the observed YES rate."
+                )
+                st.line_chart(
+                    calibration_table,
+                    x="Average forecast",
+                    y="Observed YES rate",
+                    x_label="Sentinel probability",
+                    y_label="Observed YES rate",
+                )
+                st.dataframe(
+                    calibration_table,
+                    hide_index=True,
+                    column_config={
+                        "Average forecast": st.column_config.NumberColumn(format="percent"),
+                        "Observed YES rate": st.column_config.NumberColumn(format="percent"),
+                    },
+                )
+
         breakdown_columns = {
             "Accuracy": st.column_config.NumberColumn(format="percent"),
             "Brier score": st.column_config.NumberColumn(format="%.3f"),

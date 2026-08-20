@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from utils.kalshi_journal import (
+    evaluate_forecasts,
     forecast_breakdowns,
     load_forecast_journal,
     record_forecast,
@@ -87,6 +88,35 @@ class KalshiJournalTests(unittest.TestCase):
         self.assertEqual(assets["BTC"]["Accuracy"], 1.0)
         self.assertEqual(timing["1–3 min"]["Settled"], 1)
         self.assertEqual(timing["Other / unknown"]["Settled"], 0)
+
+    def test_evaluation_compares_sentinel_with_market_and_calibrates(self):
+        rows = [
+            {
+                "result": "yes", "probability_yes": 0.8,
+                "market_probability": 0.6,
+            },
+            {
+                "result": "no", "probability_yes": 0.2,
+                "market_probability": 0.4,
+            },
+            {
+                "result": None, "probability_yes": 0.9,
+                "market_probability": 0.9,
+            },
+        ]
+        evaluation = evaluate_forecasts(rows)
+        self.assertEqual(evaluation["settled"], 2)
+        self.assertAlmostEqual(evaluation["sentinel_brier"], 0.04)
+        self.assertAlmostEqual(evaluation["market_brier"], 0.16)
+        self.assertAlmostEqual(evaluation["brier_advantage"], 0.12)
+        self.assertAlmostEqual(evaluation["average_disagreement"], 0.2)
+        self.assertEqual(sum(row["Forecasts"] for row in evaluation["calibration"]), 2)
+
+    def test_empty_evaluation_is_safe(self):
+        evaluation = evaluate_forecasts([])
+        self.assertEqual(evaluation["settled"], 0)
+        self.assertIsNone(evaluation["sentinel_brier"])
+        self.assertEqual(evaluation["calibration"], [])
 
 
 if __name__ == "__main__":

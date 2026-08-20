@@ -168,3 +168,57 @@ def forecast_breakdowns(rows=None):
         if group
     ]
     return {"asset": by_asset, "timing": by_timing}
+
+
+def evaluate_forecasts(rows=None, bin_width=0.2):
+    """Compare settled Sentinel probabilities with the recorded Kalshi market."""
+    rows = rows if rows is not None else load_forecast_journal()
+    settled = [row for row in rows if row.get("result") in {"yes", "no"}]
+    if not settled:
+        return {
+            "settled": 0,
+            "sentinel_brier": None,
+            "market_brier": None,
+            "brier_advantage": None,
+            "average_disagreement": None,
+            "calibration": [],
+        }
+
+    sentinel_errors = []
+    market_errors = []
+    disagreements = []
+    bins = {}
+    for row in settled:
+        outcome = 1.0 if row["result"] == "yes" else 0.0
+        sentinel_probability = min(max(_number(row.get("probability_yes")), 0.0), 1.0)
+        market_probability = min(max(_number(row.get("market_probability")), 0.0), 1.0)
+        sentinel_errors.append((sentinel_probability - outcome) ** 2)
+        market_errors.append((market_probability - outcome) ** 2)
+        disagreements.append(abs(sentinel_probability - market_probability))
+        lower = min(int(sentinel_probability / bin_width) * bin_width, 1.0 - bin_width)
+        label = f"{lower:.1f}–{lower + bin_width:.1f}"
+        bins.setdefault(label, {"probabilities": [], "outcomes": []})
+        bins[label]["probabilities"].append(sentinel_probability)
+        bins[label]["outcomes"].append(outcome)
+
+    calibration = []
+    for label, values in bins.items():
+        calibration.append(
+            {
+                "Probability range": label,
+                "Average forecast": sum(values["probabilities"]) / len(values["probabilities"]),
+                "Observed YES rate": sum(values["outcomes"]) / len(values["outcomes"]),
+                "Forecasts": len(values["outcomes"]),
+            }
+        )
+    calibration.sort(key=lambda row: row["Average forecast"])
+    sentinel_brier = sum(sentinel_errors) / len(settled)
+    market_brier = sum(market_errors) / len(settled)
+    return {
+        "settled": len(settled),
+        "sentinel_brier": sentinel_brier,
+        "market_brier": market_brier,
+        "brier_advantage": market_brier - sentinel_brier,
+        "average_disagreement": sum(disagreements) / len(disagreements),
+        "calibration": calibration,
+    }
