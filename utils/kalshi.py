@@ -123,6 +123,25 @@ def fetch_crypto_15m_markets(assets=None, timeout=8):
     return sorted(normalized, key=lambda item: item["close_time"] or "")
 
 
+def fetch_market_result(ticker, timeout=8):
+    """Return the current status and binary result for one public market."""
+    try:
+        response = requests.get(
+            f"{BASE_URL}/markets/{str(ticker).strip().upper()}",
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        market = response.json()["market"]
+    except (requests.RequestException, KeyError, TypeError, ValueError) as error:
+        raise KalshiDataError("Kalshi could not update this market result.") from error
+    result = str(market.get("result", "")).strip().lower()
+    return {
+        "ticker": str(market.get("ticker", ticker)),
+        "status": str(market.get("status", "")),
+        "result": result if result in {"yes", "no"} else None,
+    }
+
+
 def new_kalshi_paper_portfolio():
     """Return a clean simulated prediction-market portfolio."""
     return {

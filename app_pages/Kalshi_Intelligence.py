@@ -17,12 +17,19 @@ from utils.kalshi import (
     buy_paper_contract,
     close_paper_contract,
     fetch_crypto_15m_markets,
+    fetch_market_result,
     load_kalshi_paper_portfolio,
 )
 from data.crypto_data import CryptoDataError, get_crypto_minute_bars
 from utils.kalshi_forecast import (
     estimate_direction_probability,
     forecast_decision,
+)
+from utils.kalshi_journal import (
+    load_forecast_journal,
+    record_forecast,
+    summarize_forecasts,
+    update_forecast_results,
 )
 
 
@@ -125,10 +132,11 @@ with st.container(horizontal=True):
         border=True,
     )
 
-live_tab, portfolio_tab = st.tabs(
+live_tab, portfolio_tab, journal_tab = st.tabs(
     [
         ":material/monitoring: Live market board",
         ":material/account_balance_wallet: Paper portfolio",
+        ":material/lab_profile: Forecast journal",
     ]
 )
 
@@ -237,6 +245,33 @@ with live_tab:
                             f'{forecast["minutes_remaining"]:.1f} minutes remaining · '
                             "Experimental and not yet validated on forward results."
                         )
+                        if st.button(
+                            "Record forecast snapshot",
+                            icon=":material/bookmark_add:",
+                            key=f'journal_{selected["ticker"]}',
+                        ):
+                            try:
+                                record_forecast(
+                                    {
+                                        "ticker": selected["ticker"],
+                                        "asset": selected["asset"],
+                                        "title": selected["title"],
+                                        "close_time": selected["close_time"],
+                                        "probability_yes": forecast["probability_yes"],
+                                        "market_probability": selected["market_probability"],
+                                        "yes_ask": selected["yes_ask"],
+                                        "no_ask": selected["no_ask"],
+                                        "decision": decision["decision"],
+                                        "estimated_edge": decision["edge"],
+                                        "start_price": forecast["start_price"],
+                                        "current_price": forecast["current_price"],
+                                    }
+                                )
+                            except ValueError as error:
+                                st.warning(str(error))
+                            else:
+                                st.toast("Forecast snapshot recorded.", icon=":material/check_circle:")
+                                st.rerun()
 
                 st.markdown("#### Simulate an entry")
                 with st.form("kalshi_paper_order"):
@@ -366,6 +401,77 @@ with portfolio_tab:
         )
     else:
         st.caption("No simulated Kalshi activity has been recorded.")
+
+with journal_tab:
+    journal = load_forecast_journal()
+    summary = summarize_forecasts(journal)
+    with st.container(horizontal=True):
+        st.metric("Recorded", summary["total"], border=True)
+        st.metric("Settled", summary["settled"], border=True)
+        st.metric(
+            "Direction accuracy",
+            f'{summary["accuracy"]:.1%}' if summary["accuracy"] is not None else "—",
+            border=True,
+        )
+        st.metric(
+            "Brier score",
+            f'{summary["brier_score"]:.3f}' if summary["brier_score"] is not None else "—",
+            help="Lower is better; 0 is perfect probability calibration.",
+            border=True,
+        )
+    st.caption(
+        f'Simulated decision profit: ${summary["paper_profit"]:+.2f} across '
+        f'{summary["paper_trades"]} settled paper decisions.'
+    )
+    if st.button("Check official results", icon=":material/sync:", disabled=not journal):
+        official_results = {}
+        failures = 0
+        for row in journal:
+            if row.get("result") is not None:
+                continue
+            try:
+                market_result = fetch_market_result(row["ticker"])
+            except KalshiDataError:
+                failures += 1
+                continue
+            if market_result["result"]:
+                official_results[row["ticker"]] = market_result["result"]
+        updated = update_forecast_results(official_results)
+        st.toast(f"Updated {updated} settled forecast(s).")
+        if failures:
+            st.warning(f"{failures} result check(s) could not be completed.")
+        if updated:
+            st.rerun()
+    if journal:
+        journal_table = pd.DataFrame(reversed(journal)).rename(
+            columns={
+                "recorded_at": "Recorded (UTC)",
+                "asset": "Asset",
+                "title": "Contract",
+                "probability_yes": "Forecast YES",
+                "market_probability": "Market probability",
+                "decision": "Decision",
+                "estimated_edge": "Estimated edge",
+                "result": "Result",
+            }
+        )
+        visible = [
+            "Recorded (UTC)", "Asset", "Contract", "Forecast YES",
+            "Market probability", "Decision", "Estimated edge", "Result",
+        ]
+        st.dataframe(
+            journal_table[visible],
+            hide_index=True,
+            column_config={
+                "Recorded (UTC)": st.column_config.DatetimeColumn(format="MMM DD, h:mm:ss a"),
+                "Asset": st.column_config.TextColumn(pinned=True),
+                "Forecast YES": st.column_config.ProgressColumn(format="percent", min_value=0, max_value=1),
+                "Market probability": st.column_config.NumberColumn(format="percent"),
+                "Estimated edge": st.column_config.NumberColumn(format="percent"),
+            },
+        )
+    else:
+        st.info("Record a forecast snapshot from the live market board to begin measuring results.")
 
 with st.expander("How Sentinel will become an AI forecasting assistant", icon=":material/psychology:"):
     st.markdown(
