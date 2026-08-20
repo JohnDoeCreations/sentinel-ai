@@ -19,6 +19,11 @@ from utils.kalshi import (
     fetch_crypto_15m_markets,
     load_kalshi_paper_portfolio,
 )
+from data.crypto_data import CryptoDataError, get_crypto_minute_bars
+from utils.kalshi_forecast import (
+    estimate_direction_probability,
+    forecast_decision,
+)
 
 
 st.set_page_config(
@@ -32,6 +37,11 @@ st.set_page_config(
 def load_live_markets(assets):
     """Cache the public feed briefly so normal interactions stay fast."""
     return fetch_crypto_15m_markets(tuple(assets))
+
+
+@st.cache_data(ttl=30, max_entries=20, show_spinner=False)
+def load_crypto_bars(asset, _api_key):
+    return get_crypto_minute_bars(asset, _api_key)
 
 
 with st.container(horizontal=True, vertical_alignment="center"):
@@ -183,6 +193,50 @@ with live_tab:
                     st.metric("NO ask", f'${selected["no_ask"]:.3f}')
                     st.metric("YES spread", f'${selected["spread"]:.3f}')
                     st.metric("Liquidity", f'${selected["liquidity"]:,.0f}')
+
+                st.markdown("#### Experimental forecast")
+                try:
+                    massive_api_key = str(st.secrets.get("MASSIVE_API_KEY", "")).strip()
+                except Exception:
+                    massive_api_key = ""
+                if not massive_api_key:
+                    st.info("Add MASSIVE_API_KEY to enable the experimental forecast.")
+                else:
+                    try:
+                        bars = load_crypto_bars(selected["asset"], massive_api_key)
+                        forecast = estimate_direction_probability(
+                            bars, selected["close_time"]
+                        )
+                        decision = forecast_decision(
+                            forecast["probability_yes"],
+                            selected["yes_ask"],
+                            selected["no_ask"],
+                        )
+                    except (CryptoDataError, ValueError) as error:
+                        st.warning(f"Forecast unavailable: {error}")
+                    else:
+                        with st.container(horizontal=True):
+                            st.metric(
+                                "Baseline YES probability",
+                                f'{forecast["probability_yes"]:.1%}',
+                                border=True,
+                            )
+                            st.metric(
+                                "Price move since start",
+                                f'{forecast["move_percent"]:+.3f}%',
+                                border=True,
+                            )
+                            st.metric(
+                                "Decision",
+                                decision["decision"],
+                                f'{decision["edge"]:+.1%} estimated edge',
+                                border=True,
+                            )
+                        st.caption(
+                            f'{forecast["method"]} · '
+                            f'{forecast["minutes_remaining"]:.1f} minutes remaining · '
+                            "Experimental and not yet validated on forward results."
+                        )
 
                 st.markdown("#### Simulate an entry")
                 with st.form("kalshi_paper_order"):
