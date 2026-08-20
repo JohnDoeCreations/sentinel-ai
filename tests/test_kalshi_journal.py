@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from utils.kalshi_journal import (
+    forecast_breakdowns,
     load_forecast_journal,
     record_forecast,
     summarize_forecasts,
@@ -25,8 +26,18 @@ class KalshiJournalTests(unittest.TestCase):
                     "no_ask": 0.46,
                     "decision": "PAPER YES",
                     "estimated_edge": 0.14,
+                    "minutes_remaining": 4.5,
+                    "minute_volatility": 0.0012,
+                    "move_percent": 0.25,
+                    "spread": 0.03,
+                    "liquidity": 1200,
+                    "volume_24h": 4500,
+                    "data_provider": "Massive",
+                    "method": "baseline",
                 }
-                record_forecast(snapshot)
+                recorded = record_forecast(snapshot)
+                self.assertEqual(recorded["minutes_remaining"], 4.5)
+                self.assertEqual(recorded["data_provider"], "Massive")
                 with self.assertRaisesRegex(ValueError, "already recorded"):
                     record_forecast(snapshot)
                 self.assertEqual(update_forecast_results({"KXBTC15M-TEST": "yes"}), 1)
@@ -40,6 +51,42 @@ class KalshiJournalTests(unittest.TestCase):
         summary = summarize_forecasts([])
         self.assertIsNone(summary["accuracy"])
         self.assertEqual(summary["settled"], 0)
+
+    def test_legacy_snapshot_records_missing_experiment_inputs_as_unknown(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "journal.json"
+            with patch("utils.kalshi_journal.FORECAST_JOURNAL_FILE", path):
+                recorded = record_forecast(
+                    {"ticker": "KXETH15M-LEGACY", "probability_yes": 0.5}
+                )
+        self.assertIsNone(recorded["minutes_remaining"])
+        self.assertIsNone(recorded["minute_volatility"])
+        self.assertEqual(recorded["data_provider"], "")
+
+    def test_breakdowns_group_asset_and_forecast_timing(self):
+        rows = [
+            {
+                "asset": "BTC", "minutes_remaining": 2.0, "result": "yes",
+                "probability_yes": 0.8, "decision": "PAPER YES",
+                "yes_ask": 0.6, "no_ask": 0.4,
+            },
+            {
+                "asset": "ETH", "minutes_remaining": 7.0, "result": "no",
+                "probability_yes": 0.3, "decision": "NO TRADE",
+                "yes_ask": 0.4, "no_ask": 0.6,
+            },
+            {
+                "asset": "BTC", "result": None, "probability_yes": 0.6,
+                "decision": "NO TRADE", "yes_ask": 0.5, "no_ask": 0.5,
+            },
+        ]
+        breakdowns = forecast_breakdowns(rows)
+        assets = {row["Group"]: row for row in breakdowns["asset"]}
+        timing = {row["Group"]: row for row in breakdowns["timing"]}
+        self.assertEqual(assets["BTC"]["Recorded"], 2)
+        self.assertEqual(assets["BTC"]["Accuracy"], 1.0)
+        self.assertEqual(timing["1–3 min"]["Settled"], 1)
+        self.assertEqual(timing["Other / unknown"]["Settled"], 0)
 
 
 if __name__ == "__main__":

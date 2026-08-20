@@ -26,6 +26,7 @@ from utils.kalshi_forecast import (
     forecast_decision,
 )
 from utils.kalshi_journal import (
+    forecast_breakdowns,
     load_forecast_journal,
     record_forecast,
     summarize_forecasts,
@@ -294,6 +295,14 @@ with live_tab:
                                         "estimated_edge": decision["edge"],
                                         "start_price": forecast["start_price"],
                                         "current_price": forecast["current_price"],
+                                        "minutes_remaining": forecast["minutes_remaining"],
+                                        "minute_volatility": forecast["minute_volatility"],
+                                        "move_percent": forecast["move_percent"],
+                                        "spread": selected["spread"],
+                                        "liquidity": selected["liquidity"],
+                                        "volume_24h": selected["volume_24h"],
+                                        "data_provider": forecast["data_provider"],
+                                        "method": forecast["method"],
                                     }
                                 )
                             except ValueError as error:
@@ -472,6 +481,29 @@ with journal_tab:
         if updated:
             st.rerun()
     if journal:
+        breakdowns = forecast_breakdowns(journal)
+        breakdown_columns = {
+            "Accuracy": st.column_config.NumberColumn(format="percent"),
+            "Brier score": st.column_config.NumberColumn(format="%.3f"),
+            "Paper profit": st.column_config.NumberColumn(format="$%+.2f"),
+        }
+        st.markdown("#### Performance by asset")
+        st.dataframe(
+            pd.DataFrame(breakdowns["asset"]),
+            hide_index=True,
+            column_config=breakdown_columns,
+        )
+        st.markdown("#### Performance by forecast timing")
+        st.dataframe(
+            pd.DataFrame(breakdowns["timing"]),
+            hide_index=True,
+            column_config=breakdown_columns,
+        )
+        st.caption(
+            "Breakdowns are experimental. Treat small groups as observations, not "
+            "evidence of a repeatable forecasting advantage."
+        )
+
         journal_table = pd.DataFrame(reversed(journal)).rename(
             columns={
                 "recorded_at": "Recorded (UTC)",
@@ -481,15 +513,22 @@ with journal_tab:
                 "market_probability": "Market probability",
                 "decision": "Decision",
                 "estimated_edge": "Estimated edge",
+                "minutes_remaining": "Minutes remaining",
+                "move_percent": "Price move",
+                "minute_volatility": "Minute volatility",
+                "spread": "YES spread",
+                "data_provider": "Provider",
                 "result": "Result",
             }
         )
         visible = [
             "Recorded (UTC)", "Asset", "Contract", "Forecast YES",
             "Market probability", "Decision", "Estimated edge", "Result",
+            "Minutes remaining", "Price move", "Minute volatility", "YES spread",
+            "Provider",
         ]
         st.dataframe(
-            journal_table[visible],
+            journal_table.reindex(columns=visible),
             hide_index=True,
             column_config={
                 "Recorded (UTC)": st.column_config.DatetimeColumn(format="MMM DD, h:mm:ss a"),
@@ -497,6 +536,10 @@ with journal_tab:
                 "Forecast YES": st.column_config.ProgressColumn(format="percent", min_value=0, max_value=1),
                 "Market probability": st.column_config.NumberColumn(format="percent"),
                 "Estimated edge": st.column_config.NumberColumn(format="percent"),
+                "Minutes remaining": st.column_config.NumberColumn(format="%.1f"),
+                "Price move": st.column_config.NumberColumn(format="%+.3f%%"),
+                "Minute volatility": st.column_config.NumberColumn(format="%.4f"),
+                "YES spread": st.column_config.NumberColumn(format="$%.3f"),
             },
         )
     else:

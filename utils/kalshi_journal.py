@@ -29,10 +29,18 @@ def _save_forecast_journal(rows):
     return rows
 
 
+def _number(value, default=0.0):
+    """Convert optional market inputs without breaking older journal rows."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def record_forecast(snapshot):
     """Record one immutable snapshot per contract and reject duplicates."""
     ticker = str(snapshot.get("ticker", "")).strip().upper()
-    probability = float(snapshot.get("probability_yes"))
+    probability = _number(snapshot.get("probability_yes"), default=-1.0)
     if not ticker or not 0 <= probability <= 1:
         raise ValueError("A valid ticker and YES probability are required.")
     rows = load_forecast_journal()
@@ -45,13 +53,21 @@ def record_forecast(snapshot):
         "title": str(snapshot.get("title", "")),
         "close_time": snapshot.get("close_time"),
         "probability_yes": probability,
-        "market_probability": float(snapshot.get("market_probability", 0)),
-        "yes_ask": float(snapshot.get("yes_ask", 0)),
-        "no_ask": float(snapshot.get("no_ask", 0)),
+        "market_probability": _number(snapshot.get("market_probability")),
+        "yes_ask": _number(snapshot.get("yes_ask")),
+        "no_ask": _number(snapshot.get("no_ask")),
         "decision": str(snapshot.get("decision", "NO TRADE")),
-        "estimated_edge": float(snapshot.get("estimated_edge", 0)),
-        "start_price": float(snapshot.get("start_price", 0)),
-        "current_price": float(snapshot.get("current_price", 0)),
+        "estimated_edge": _number(snapshot.get("estimated_edge")),
+        "start_price": _number(snapshot.get("start_price")),
+        "current_price": _number(snapshot.get("current_price")),
+        "minutes_remaining": _number(snapshot.get("minutes_remaining"), None),
+        "minute_volatility": _number(snapshot.get("minute_volatility"), None),
+        "move_percent": _number(snapshot.get("move_percent"), None),
+        "spread": _number(snapshot.get("spread"), None),
+        "liquidity": _number(snapshot.get("liquidity"), None),
+        "volume_24h": _number(snapshot.get("volume_24h"), None),
+        "data_provider": str(snapshot.get("data_provider", "") or ""),
+        "method": str(snapshot.get("method", "") or ""),
         "result": None,
         "settled_at": None,
     }
@@ -106,3 +122,49 @@ def summarize_forecasts(rows=None):
         "paper_profit": paper_profit,
         "paper_trades": paper_trades,
     }
+
+
+def _breakdown_row(label, rows):
+    summary = summarize_forecasts(rows)
+    return {
+        "Group": label,
+        "Recorded": summary["total"],
+        "Settled": summary["settled"],
+        "Accuracy": summary["accuracy"],
+        "Brier score": summary["brier_score"],
+        "Paper profit": summary["paper_profit"],
+        "Paper trades": summary["paper_trades"],
+    }
+
+
+def forecast_breakdowns(rows=None):
+    """Summarize results by asset and time remaining at prediction."""
+    rows = rows if rows is not None else load_forecast_journal()
+    assets = sorted({str(row.get("asset", "")).upper() for row in rows if row.get("asset")})
+    by_asset = [
+        _breakdown_row(asset, [row for row in rows if str(row.get("asset", "")).upper() == asset])
+        for asset in assets
+    ]
+
+    timing_groups = {
+        "1–3 min": [],
+        "3–6 min": [],
+        "6–10 min": [],
+        "Other / unknown": [],
+    }
+    for row in rows:
+        minutes = _number(row.get("minutes_remaining"), None)
+        if minutes is not None and 1 <= minutes < 3:
+            timing_groups["1–3 min"].append(row)
+        elif minutes is not None and 3 <= minutes < 6:
+            timing_groups["3–6 min"].append(row)
+        elif minutes is not None and 6 <= minutes <= 10:
+            timing_groups["6–10 min"].append(row)
+        else:
+            timing_groups["Other / unknown"].append(row)
+    by_timing = [
+        _breakdown_row(label, group)
+        for label, group in timing_groups.items()
+        if group
+    ]
+    return {"asset": by_asset, "timing": by_timing}
