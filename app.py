@@ -64,6 +64,13 @@ pages = {
             icon=":material/calculate:",
         ),
     ],
+    "Predict": [
+        st.Page(
+            "app_pages/Kalshi_Intelligence.py",
+            title="Kalshi intelligence",
+            icon=":material/candlestick_chart:",
+        ),
+    ],
     "Portfolio": [
         st.Page(
             "app_pages/Paper_Trading.py",
