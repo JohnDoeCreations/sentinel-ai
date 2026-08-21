@@ -18,6 +18,7 @@ from utils.kalshi import (
     close_paper_contract,
     fetch_crypto_15m_markets,
     fetch_market_result,
+    format_market_time,
     load_kalshi_paper_portfolio,
 )
 from data.crypto_data import CryptoDataError, get_crypto_minute_bars
@@ -105,6 +106,10 @@ selected_assets = st.pills(
     key="kalshi_assets",
 )
 selected_assets = selected_assets or []
+try:
+    market_timezone = st.context.timezone or "America/Denver"
+except Exception:
+    market_timezone = "America/Denver"
 
 market_slot = st.container()
 try:
@@ -193,7 +198,9 @@ with live_tab:
                     "Spread": market["spread"],
                     "24h volume": market["volume_24h"],
                     "Liquidity": market["liquidity"],
-                    "Closes": market["close_time"],
+                    "Closes locally": format_market_time(
+                        market["close_time"], market_timezone
+                    ),
                     "Ticker": market["ticker"],
                 }
                 for market in markets
@@ -215,9 +222,6 @@ with live_tab:
                 "Spread": st.column_config.NumberColumn(format="$%.3f"),
                 "24h volume": st.column_config.NumberColumn(format="compact"),
                 "Liquidity": st.column_config.NumberColumn(format="$compact"),
-                "Closes": st.column_config.DatetimeColumn(
-                    format="MMM DD, h:mm:ss a"
-                ),
                 "Ticker": None,
             },
         )
@@ -227,6 +231,10 @@ with live_tab:
             selected = markets[selected_rows[0]]
             with st.container(border=True):
                 st.subheader(selected["title"])
+                st.caption(
+                    f'Closes {format_market_time(selected["close_time"], market_timezone)} · '
+                    "Live Kalshi market data · simulated orders only"
+                )
                 with st.container(horizontal=True):
                     st.metric("YES ask", f'${selected["yes_ask"]:.3f}')
                     st.metric("NO ask", f'${selected["no_ask"]:.3f}')

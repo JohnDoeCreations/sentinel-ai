@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
 import truststore
@@ -29,6 +30,18 @@ CRYPTO_15M_SERIES = {
 
 class KalshiDataError(RuntimeError):
     """Raised when Kalshi public market data cannot be loaded."""
+
+
+def format_market_time(value, timezone_name="America/Denver"):
+    """Format a Kalshi UTC timestamp in the viewer's named timezone."""
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        local = parsed.astimezone(ZoneInfo(timezone_name or "America/Denver"))
+    except (TypeError, ValueError, ZoneInfoNotFoundError):
+        return str(value or "—")
+    return local.strftime("%b %d, %Y · %I:%M %p %Z").replace(" 0", " ")
 
 
 def _decimal(value, default=0.0):

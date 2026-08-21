@@ -7,11 +7,18 @@ from utils.kalshi import (
     buy_paper_contract,
     close_paper_contract,
     fetch_crypto_15m_markets,
+    format_market_time,
     load_kalshi_paper_portfolio,
 )
 
 
 class KalshiTests(unittest.TestCase):
+    def test_formats_utc_market_close_in_mountain_time(self):
+        formatted = format_market_time(
+            "2026-08-21T00:15:00Z", "America/Denver"
+        )
+        self.assertEqual(formatted, "Aug 20, 2026 · 6:15 PM MDT")
+
     @patch("utils.kalshi.requests.get")
     def test_normalizes_public_market_prices(self, get):
         response = Mock()
