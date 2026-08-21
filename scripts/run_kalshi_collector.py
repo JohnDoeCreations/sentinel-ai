@@ -41,6 +41,8 @@ def main():
         save_collector_status(report)
         print(
             f"markets={report['markets']} recorded={report['recorded']} "
+            f"paper_trades={report['paper_trades']} "
+            f"paper_settled={report['paper_positions_settled']} "
             f"settled={report['settled']} skipped={report['skipped']} "
             f"errors={len(report['errors'])}",
             flush=True,

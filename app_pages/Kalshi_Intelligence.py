@@ -37,6 +37,10 @@ from utils.kalshi_journal import (
     update_forecast_results,
 )
 from utils.kalshi_collector_status import collector_health, load_collector_status
+from utils.kalshi_auto_trade import (
+    load_auto_trade_settings,
+    save_auto_trade_settings,
+)
 
 
 st.set_page_config(
@@ -121,6 +125,7 @@ except KalshiDataError as error:
     market_slot.error(str(error), icon=":material/cloud_off:")
 
 portfolio = load_kalshi_paper_portfolio()
+auto_trade_settings = load_auto_trade_settings()
 market_by_ticker = {market["ticker"]: market for market in markets}
 position_rows = []
 market_value = 0.0
@@ -370,6 +375,75 @@ with live_tab:
             st.caption("Select one row to inspect it and open the paper trade ticket.")
 
 with portfolio_tab:
+    with st.container(border=True):
+        automation_header = st.container(horizontal=True, vertical_alignment="center")
+        automation_header.markdown("**Automatic paper execution**")
+        automation_header.badge(
+            "Enabled" if auto_trade_settings["enabled"] else "Paused",
+            icon=":material/smart_toy:",
+            color="green" if auto_trade_settings["enabled"] else "gray",
+        )
+        st.caption(
+            "The Windows collector can automatically open and settle simulated "
+            "contracts. No Kalshi account or real money is connected."
+        )
+        with st.form("kalshi_auto_paper_settings", border=False):
+            auto_enabled = st.toggle(
+                "Allow automatic simulated entries",
+                value=auto_trade_settings["enabled"],
+            )
+            with st.container(horizontal=True):
+                minimum_edge = st.number_input(
+                    "Minimum estimated edge",
+                    min_value=0.0,
+                    max_value=0.5,
+                    value=float(auto_trade_settings["minimum_edge"]),
+                    step=0.01,
+                    format="%.2f",
+                )
+                contracts_per_trade = st.number_input(
+                    "Maximum contracts per trade",
+                    min_value=1,
+                    max_value=10_000,
+                    value=int(auto_trade_settings["contracts_per_trade"]),
+                    step=1,
+                )
+                maximum_trade_cost = st.number_input(
+                    "Maximum cost per trade",
+                    min_value=1.0,
+                    max_value=1_000_000.0,
+                    value=float(auto_trade_settings["maximum_trade_cost"]),
+                    step=5.0,
+                )
+                maximum_total_exposure = st.number_input(
+                    "Maximum total exposure",
+                    min_value=1.0,
+                    max_value=10_000_000.0,
+                    value=float(auto_trade_settings["maximum_total_exposure"]),
+                    step=10.0,
+                )
+            save_automation = st.form_submit_button(
+                "Save automatic paper settings",
+                icon=":material/save:",
+                type="primary",
+            )
+        if save_automation:
+            try:
+                save_auto_trade_settings(
+                    {
+                        "enabled": auto_enabled,
+                        "minimum_edge": minimum_edge,
+                        "contracts_per_trade": contracts_per_trade,
+                        "maximum_trade_cost": maximum_trade_cost,
+                        "maximum_total_exposure": maximum_total_exposure,
+                    }
+                )
+            except ValueError as error:
+                st.error(str(error))
+            else:
+                st.toast("Automatic paper settings saved.", icon=":material/check_circle:")
+                st.rerun()
+
     with st.expander("Paper account settings", icon=":material/account_balance:"):
         st.caption(
             "Change available simulated cash. This never deposits, withdraws, or "

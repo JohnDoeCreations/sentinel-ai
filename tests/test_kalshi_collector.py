@@ -8,6 +8,45 @@ from utils.kalshi_collector import collect_forecast_cycle
 
 
 class KalshiCollectorTests(unittest.TestCase):
+    @patch("utils.kalshi_collector.buy_paper_contract")
+    @patch(
+        "utils.kalshi_collector.load_kalshi_paper_portfolio",
+        return_value={"cash": 1000, "positions": {}},
+    )
+    @patch(
+        "utils.kalshi_collector.forecast_decision",
+        return_value={"decision": "PAPER YES", "edge": 0.10},
+    )
+    @patch(
+        "utils.kalshi_collector.estimate_direction_probability",
+        return_value={"probability_yes": 0.7},
+    )
+    @patch("utils.kalshi_collector.record_forecast")
+    @patch("utils.kalshi_collector.get_crypto_minute_bars", return_value=pd.DataFrame())
+    @patch("utils.kalshi_collector.fetch_crypto_15m_markets")
+    @patch("utils.kalshi_collector.load_forecast_journal", side_effect=[[], []])
+    def test_cycle_can_place_automatic_paper_order(
+        self, _journal, fetch_markets, _bars, _record, _forecast,
+        _decision, _portfolio, buy,
+    ):
+        now = datetime(2026, 8, 20, 12, 0, tzinfo=timezone.utc)
+        fetch_markets.return_value = [{
+            "ticker": "NEW", "asset": "BTC", "title": "BTC up?",
+            "close_time": (now + timedelta(minutes=5)).isoformat(),
+            "yes_ask": 0.5, "no_ask": 0.51, "market_probability": 0.5,
+        }]
+        settings = {
+            "enabled": True, "minimum_edge": 0.05,
+            "contracts_per_trade": 10, "maximum_trade_cost": 25,
+            "maximum_total_exposure": 100,
+        }
+        report = collect_forecast_cycle("key", now=now, auto_settings=settings)
+        self.assertEqual(report["paper_trades"], 1)
+        buy.assert_called_once_with(
+            "NEW", "BTC up?", "BTC", "YES", 10, 0.5,
+            fetch_markets.return_value[0]["close_time"],
+        )
+
     @patch("utils.kalshi_collector.update_forecast_results", return_value=1)
     @patch("utils.kalshi_collector.fetch_market_result", return_value={"result": "yes"})
     @patch("utils.kalshi_collector.record_forecast")

@@ -10,6 +10,7 @@ from utils.kalshi import (
     format_market_time,
     load_kalshi_paper_portfolio,
     set_paper_cash_balance,
+    settle_paper_contract,
 )
 
 
@@ -100,6 +101,23 @@ class KalshiTests(unittest.TestCase):
     def test_rejects_invalid_simulated_cash(self):
         with self.assertRaisesRegex(ValueError, "between"):
             set_paper_cash_balance(-1)
+
+    def test_settles_winning_and_losing_paper_contracts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "kalshi.json"
+            with patch("utils.kalshi.PAPER_PORTFOLIO_FILE", path):
+                buy_paper_contract("MARKET", "Test", "BTC", "YES", 2, 0.4)
+                buy_paper_contract("MARKET", "Test", "BTC", "NO", 3, 0.7)
+                self.assertEqual(settle_paper_contract("MARKET", "yes"), 2)
+                portfolio = load_kalshi_paper_portfolio()
+                self.assertFalse(portfolio["positions"])
+                settlements = [
+                    row for row in portfolio["transactions"]
+                    if row["action"] == "SETTLE"
+                ]
+                self.assertEqual(len(settlements), 2)
+                self.assertEqual(settlements[0]["price"], 1.0)
+                self.assertEqual(settlements[1]["price"], 0.0)
 
 
 if __name__ == "__main__":

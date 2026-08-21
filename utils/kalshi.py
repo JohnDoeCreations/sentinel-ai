@@ -318,3 +318,42 @@ def close_paper_contract(position_key, contracts, price):
         }
     )
     return _save_kalshi_paper_portfolio(portfolio)
+
+
+def settle_paper_contract(ticker, result):
+    """Settle every simulated side for a resolved contract at $0 or $1."""
+    clean_ticker = str(ticker).strip().upper()
+    clean_result = str(result).strip().upper()
+    if clean_result not in {"YES", "NO"}:
+        raise ValueError("Settlement result must be YES or NO.")
+    portfolio = load_kalshi_paper_portfolio()
+    matching = [
+        key for key, position in portfolio["positions"].items()
+        if str(position.get("ticker", "")).upper() == clean_ticker
+    ]
+    settled = 0
+    for key in matching:
+        position = portfolio["positions"].pop(key)
+        contracts = int(position["contracts"])
+        payout_price = 1.0 if position["side"] == clean_result else 0.0
+        proceeds = round(contracts * payout_price, 4)
+        realized_profit = round(
+            (payout_price - float(position["average_cost"])) * contracts, 4
+        )
+        portfolio["cash"] = round(float(portfolio["cash"]) + proceeds, 4)
+        portfolio["transactions"].append(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "action": "SETTLE",
+                "ticker": clean_ticker,
+                "side": position["side"],
+                "contracts": contracts,
+                "price": payout_price,
+                "total": proceeds,
+                "realized_profit": realized_profit,
+            }
+        )
+        settled += 1
+    if settled:
+        _save_kalshi_paper_portfolio(portfolio)
+    return settled
