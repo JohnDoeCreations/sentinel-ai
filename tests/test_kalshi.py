@@ -9,6 +9,7 @@ from utils.kalshi import (
     fetch_crypto_15m_markets,
     format_market_time,
     load_kalshi_paper_portfolio,
+    paper_profit_summary,
     set_paper_cash_balance,
     settle_paper_contract,
 )
@@ -118,6 +119,27 @@ class KalshiTests(unittest.TestCase):
                 self.assertEqual(len(settlements), 2)
                 self.assertEqual(settlements[0]["price"], 1.0)
                 self.assertEqual(settlements[1]["price"], 0.0)
+
+    def test_profit_summary_excludes_cash_adjustments(self):
+        portfolio = {
+            "transactions": [
+                {"action": "CASH ADJUSTMENT", "total": 5_000},
+                {
+                    "action": "CLOSE", "timestamp": "2026-08-21T00:00:00Z",
+                    "ticker": "WIN", "side": "YES", "realized_profit": 4.0,
+                },
+                {
+                    "action": "SETTLE", "timestamp": "2026-08-21T00:15:00Z",
+                    "ticker": "LOSS", "side": "NO", "realized_profit": -1.5,
+                },
+            ]
+        }
+        summary = paper_profit_summary(portfolio, unrealized_profit=0.75)
+        self.assertEqual(summary["realized_profit"], 2.5)
+        self.assertEqual(summary["total_profit"], 3.25)
+        self.assertEqual(summary["closed_trades"], 2)
+        self.assertEqual(summary["win_rate"], 0.5)
+        self.assertEqual(summary["history"][-1]["Cumulative realized P/L"], 2.5)
 
 
 if __name__ == "__main__":

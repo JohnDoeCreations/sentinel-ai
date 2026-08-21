@@ -20,6 +20,7 @@ from utils.kalshi import (
     fetch_market_result,
     format_market_time,
     load_kalshi_paper_portfolio,
+    paper_profit_summary,
     set_paper_cash_balance,
 )
 from data.crypto_data import CryptoDataError, get_crypto_minute_bars
@@ -158,6 +159,7 @@ for key, position in portfolio["positions"].items():
             "Unrealized P/L": profit,
         }
     )
+profit_summary = paper_profit_summary(portfolio, unrealized_profit)
 
 with st.container(horizontal=True):
     st.metric("Active contracts", len(markets), border=True)
@@ -471,6 +473,63 @@ with portfolio_tab:
             else:
                 st.toast("Simulated cash balance updated.", icon=":material/check_circle:")
                 st.rerun()
+
+    st.subheader("Paper profit performance")
+    with st.container(horizontal=True):
+        st.metric(
+            "Total paper P/L",
+            f'${profit_summary["total_profit"]:+,.2f}',
+            border=True,
+        )
+        st.metric(
+            "Realized P/L",
+            f'${profit_summary["realized_profit"]:+,.2f}',
+            border=True,
+        )
+        st.metric(
+            "Unrealized P/L",
+            f'${profit_summary["unrealized_profit"]:+,.2f}',
+            border=True,
+        )
+        st.metric(
+            "Closed-trade win rate",
+            f'{profit_summary["win_rate"]:.1%}'
+            if profit_summary["win_rate"] is not None else "—",
+            delta=f'{profit_summary["closed_trades"]} closed trades',
+            border=True,
+        )
+    if profit_summary["history"]:
+        profit_history = pd.DataFrame(profit_summary["history"])
+        profit_history["Time"] = pd.to_datetime(profit_history["Time"], utc=True)
+        with st.container(border=True):
+            st.markdown("**Cumulative realized profit**")
+            st.area_chart(
+                profit_history,
+                x="Time",
+                y="Cumulative realized P/L",
+                x_label="Settlement time",
+                y_label="Realized paper profit ($)",
+            )
+        with st.expander("Profit history", icon=":material/receipt_long:"):
+            st.dataframe(
+                profit_history,
+                hide_index=True,
+                column_config={
+                    "Time": st.column_config.DatetimeColumn(
+                        format="MMM DD, YYYY h:mm:ss a"
+                    ),
+                    "Trade P/L": st.column_config.NumberColumn(format="$%+.2f"),
+                    "Cumulative realized P/L": st.column_config.NumberColumn(
+                        format="$%+.2f"
+                    ),
+                },
+            )
+    else:
+        st.info(
+            "The profit chart will appear after the first paper position is closed "
+            "or settled.",
+            icon=":material/query_stats:",
+        )
 
     st.subheader("Open simulated contracts")
     if not position_rows:
