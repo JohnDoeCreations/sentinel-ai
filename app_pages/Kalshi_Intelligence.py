@@ -20,6 +20,7 @@ from utils.kalshi import (
     fetch_market_result,
     format_market_time,
     load_kalshi_paper_portfolio,
+    set_paper_cash_balance,
 )
 from data.crypto_data import CryptoDataError, get_crypto_minute_bars
 from utils.kalshi_forecast import (
@@ -369,6 +370,34 @@ with live_tab:
             st.caption("Select one row to inspect it and open the paper trade ticket.")
 
 with portfolio_tab:
+    with st.expander("Paper account settings", icon=":material/account_balance:"):
+        st.caption(
+            "Change available simulated cash. This never deposits, withdraws, or "
+            "connects real money, and open paper positions are preserved."
+        )
+        with st.form("kalshi_paper_cash_settings", border=False):
+            desired_paper_cash = st.number_input(
+                "Available simulated cash",
+                min_value=0.0,
+                max_value=1_000_000_000.0,
+                value=float(portfolio["cash"]),
+                step=100.0,
+                format="%.2f",
+            )
+            update_paper_cash = st.form_submit_button(
+                "Update simulated balance",
+                icon=":material/savings:",
+                type="primary",
+            )
+        if update_paper_cash:
+            try:
+                set_paper_cash_balance(desired_paper_cash)
+            except ValueError as error:
+                st.error(str(error))
+            else:
+                st.toast("Simulated cash balance updated.", icon=":material/check_circle:")
+                st.rerun()
+
     st.subheader("Open simulated contracts")
     if not position_rows:
         st.info("Your Kalshi paper portfolio has no open contracts yet.")

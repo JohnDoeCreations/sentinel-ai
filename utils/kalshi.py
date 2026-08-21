@@ -183,6 +183,39 @@ def load_kalshi_paper_portfolio():
     return portfolio
 
 
+def set_paper_cash_balance(amount):
+    """Set available simulated cash while preserving positions and audit history."""
+    try:
+        amount = round(float(amount), 2)
+    except (TypeError, ValueError) as error:
+        raise ValueError("Paper cash must be a valid number.") from error
+    if amount < 0 or amount > 1_000_000_000:
+        raise ValueError("Paper cash must be between $0 and $1 billion.")
+
+    portfolio = load_kalshi_paper_portfolio()
+    previous = round(float(portfolio["cash"]), 2)
+    adjustment = round(amount - previous, 2)
+    if adjustment == 0:
+        return portfolio
+    portfolio["cash"] = amount
+    portfolio["cash_adjustments"] = round(
+        float(portfolio.get("cash_adjustments", 0)) + adjustment,
+        2,
+    )
+    portfolio["transactions"].append(
+        {
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "action": "CASH ADJUSTMENT",
+            "ticker": "PAPER CASH",
+            "side": "",
+            "contracts": 0,
+            "price": 0.0,
+            "total": adjustment,
+        }
+    )
+    return _save_kalshi_paper_portfolio(portfolio)
+
+
 def _save_kalshi_paper_portfolio(portfolio):
     PAPER_PORTFOLIO_FILE.parent.mkdir(parents=True, exist_ok=True)
     temporary = PAPER_PORTFOLIO_FILE.with_suffix(".tmp")
