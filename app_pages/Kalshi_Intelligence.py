@@ -20,7 +20,6 @@ from utils.kalshi import (
     fetch_market_result,
     format_market_time,
     load_kalshi_paper_portfolio,
-    paper_profit_summary,
     set_paper_cash_balance,
 )
 from data.crypto_data import CryptoDataError, get_crypto_minute_bars
@@ -38,6 +37,7 @@ from utils.kalshi_journal import (
     update_forecast_results,
 )
 from utils.kalshi_collector_status import collector_health, load_collector_status
+from utils.kalshi_profit import paper_profit_summary
 from utils.kalshi_auto_trade import (
     load_auto_trade_settings,
     save_auto_trade_settings,

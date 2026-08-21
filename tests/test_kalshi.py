@@ -9,10 +9,10 @@ from utils.kalshi import (
     fetch_crypto_15m_markets,
     format_market_time,
     load_kalshi_paper_portfolio,
-    paper_profit_summary,
     set_paper_cash_balance,
     settle_paper_contract,
 )
+from utils.kalshi_profit import paper_profit_summary
 
 
 class KalshiTests(unittest.TestCase):
