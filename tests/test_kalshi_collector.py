@@ -70,7 +70,15 @@ class KalshiCollectorTests(unittest.TestCase):
             "Time": [now - timedelta(minutes=39-i) for i in range(40)],
             "Close": [100 + i * 0.02 for i in range(40)],
         })
-        report = collect_forecast_cycle("key", now=now)
+        report = collect_forecast_cycle(
+            "key",
+            now=now,
+            auto_settings={
+                "enabled": False, "minimum_edge": 0.05,
+                "contracts_per_trade": 10, "maximum_trade_cost": 25,
+                "maximum_total_exposure": 100,
+            },
+        )
         self.assertEqual(report["recorded"], 1)
         self.assertEqual(report["settled"], 1)
         record.assert_called_once()
@@ -79,7 +87,14 @@ class KalshiCollectorTests(unittest.TestCase):
     @patch("utils.kalshi_collector.fetch_crypto_15m_markets", return_value=[])
     @patch("utils.kalshi_collector.load_forecast_journal", return_value=[])
     def test_empty_cycle_is_safe(self, _journal, _markets):
-        report = collect_forecast_cycle("key")
+        report = collect_forecast_cycle(
+            "key",
+            auto_settings={
+                "enabled": False, "minimum_edge": 0.05,
+                "contracts_per_trade": 10, "maximum_trade_cost": 25,
+                "maximum_total_exposure": 100,
+            },
+        )
         self.assertEqual(report["recorded"], 0)
         self.assertEqual(report["errors"], [])
 

@@ -3,6 +3,7 @@
 from pathlib import Path
 import sys
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -501,14 +502,91 @@ with portfolio_tab:
     if profit_summary["history"]:
         profit_history = pd.DataFrame(profit_summary["history"])
         profit_history["Time"] = pd.to_datetime(profit_history["Time"], utc=True)
+        profit_history["Result"] = profit_history["Trade P/L"].map(
+            lambda value: "Profit" if value > 0 else "Loss" if value < 0 else "Flat"
+        )
+        time_axis = alt.X(
+            "Time:T",
+            title="Settlement time",
+            axis=alt.Axis(format="%b %d · %I:%M %p", labelAngle=-25),
+        )
+        cumulative_line = (
+            alt.Chart(profit_history)
+            .mark_line(color="#8B5CF6", strokeWidth=3, interpolate="monotone")
+            .encode(
+                x=time_axis,
+                y=alt.Y(
+                    "Cumulative realized P/L:Q",
+                    title="Cumulative realized profit ($)",
+                    axis=alt.Axis(format="$,.2f"),
+                ),
+            )
+        )
+        settlement_points = (
+            alt.Chart(profit_history)
+            .mark_circle(size=95, stroke="#111827", strokeWidth=1)
+            .encode(
+                x=time_axis,
+                y="Cumulative realized P/L:Q",
+                color=alt.Color(
+                    "Result:N",
+                    scale=alt.Scale(
+                        domain=["Profit", "Flat", "Loss"],
+                        range=["#22C55E", "#94A3B8", "#EF4444"],
+                    ),
+                    legend=alt.Legend(title="Trade result", orient="top"),
+                ),
+                tooltip=[
+                    alt.Tooltip("Time:T", title="Settled", format="%b %d, %Y %I:%M %p"),
+                    alt.Tooltip("Market:N", title="Contract"),
+                    alt.Tooltip("Side:N", title="Side"),
+                    alt.Tooltip("Trade P/L:Q", title="Trade P/L", format="$+.2f"),
+                    alt.Tooltip(
+                        "Cumulative realized P/L:Q",
+                        title="Total realized P/L",
+                        format="$+.2f",
+                    ),
+                ],
+            )
+        )
+        zero_line = (
+            alt.Chart(pd.DataFrame({"baseline": [0]}))
+            .mark_rule(color="#64748B", strokeDash=[5, 5])
+            .encode(y="baseline:Q")
+        )
+        trade_bars = (
+            alt.Chart(profit_history)
+            .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+            .encode(
+                x=time_axis,
+                y=alt.Y("Trade P/L:Q", title="Profit per trade ($)", axis=alt.Axis(format="$,.2f")),
+                color=alt.Color(
+                    "Result:N",
+                    scale=alt.Scale(
+                        domain=["Profit", "Flat", "Loss"],
+                        range=["#22C55E", "#94A3B8", "#EF4444"],
+                    ),
+                    legend=None,
+                ),
+                tooltip=[
+                    alt.Tooltip("Market:N", title="Contract"),
+                    alt.Tooltip("Side:N", title="Side"),
+                    alt.Tooltip("Trade P/L:Q", title="Trade P/L", format="$+.2f"),
+                ],
+            )
+        )
         with st.container(border=True):
-            st.markdown("**Cumulative realized profit**")
-            st.area_chart(
-                profit_history,
-                x="Time",
-                y="Cumulative realized P/L",
-                x_label="Settlement time",
-                y_label="Realized paper profit ($)",
+            st.markdown("**Paper trading performance**")
+            st.caption(
+                "The purple line is your running realized profit. Each point is a "
+                "settled trade; green added money and red lost money."
+            )
+            st.altair_chart(
+                (zero_line + cumulative_line + settlement_points).properties(height=310)
+            )
+            st.markdown("**Profit or loss from each settled trade**")
+            st.altair_chart(
+                (zero_line + trade_bars).properties(height=190)
             )
         with st.expander("Profit history", icon=":material/receipt_long:"):
             st.dataframe(
